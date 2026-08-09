@@ -1,5 +1,9 @@
 # LIFE — Digital Evolution Observatory
 
+[![Live simulation](https://img.shields.io/badge/demo-live-4ee0c8?style=flat-square&labelColor=0a0e16)](https://dominikvytisk.github.io/life-simulation/)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/dominikvytisk/life-simulation/deploy.yml?style=flat-square&labelColor=0a0e16&label=build%20%26%20tests)](https://github.com/dominikvytisk/life-simulation/actions/workflows/deploy.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&labelColor=0a0e16)](tsconfig.app.json)
+
 **An artificial life simulation that runs in your browser.** Thousands of organisms evolve genomes,
 bodies, senses, recurrent neural networks, episodic memory and their own communication signals — and
 none of their behaviour is scripted.
