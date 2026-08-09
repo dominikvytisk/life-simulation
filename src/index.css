@@ -1,0 +1,100 @@
+@import 'tailwindcss';
+
+/*
+  Visual register: scientific instrument, not game UI.
+  Near-black ground, one cool accent, data drawn in light on dark. Type is
+  small and dense because this screen is mostly numbers.
+*/
+@theme {
+  --color-ground: #05070c;
+  --color-panel: #0a0e16;
+  --color-panel-2: #10151f;
+  --color-edge: #1c2432;
+  --color-edge-2: #2a3446;
+  --color-ink: #dbe4f0;
+  --color-ink-dim: #8a97ad;
+  --color-ink-faint: #55607450;
+  --color-accent: #4ee0c8;
+  --color-accent-2: #6aa8ff;
+  --color-warn: #ffb454;
+  --color-danger: #ff6b5e;
+  --color-life: #7ddc7d;
+
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Slim scrollbars so panels don't lose width to chrome. */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #232c3c;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #33405a;
+}
+
+@utility panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-edge);
+}
+
+@utility label-xs {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-dim);
+}
+
+/* A hairline grid backdrop, echoing the graticule drawn over the world. */
+@utility grid-bg {
+  background-image:
+    linear-gradient(rgba(78, 224, 200, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(78, 224, 200, 0.028) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@keyframes pulse-ring {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  animation: pulse-ring 1.6s ease-out infinite;
+}

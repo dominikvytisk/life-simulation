@@ -1,0 +1,2030 @@
+/**
+ * The simulation core. Owns the world, the population and the RNG stream, and
+ * advances everything by exactly one tick at a time.
+ *
+ * Determinism contract: the only source of randomness is `this.rng`, and it is
+ * consumed in a fixed order (ascending slot index, then a fixed sub-order
+ * within each organism). Given the same seed + config + initial population, two
+ * runs produce byte-identical state. Nothing here may read wall-clock time,
+ * iterate a Map/Set whose insertion order depends on timing, or use
+ * Math.random().
+ *
+ * Structure of a tick:
+ *   1. environment    (vegetation growth, decay, diffusion, day/night, seasons)
+ *   2. spatial index  (counting-sort rebuild)
+ *   3. per-organism   (sense -> think -> act -> learn -> metabolise), one pass
+ *   4. deaths         (carrion deposition, slot recycling)
+ *   5. bookkeeping    (species, niches, culture, chronicle, stats)
+ *
+ * Everything an organism can do is an output of its own network acting on its
+ * own senses. There is no rule anywhere in this file of the form "if X then
+ * behave like Y" — the closest thing is a threshold on an output the network
+ * chose to produce.
+ */
+import { type SimConfig, DEFAULT_CONFIG } from './core/config';
+import { Rng } from './core/rng';
+import { SpatialHash } from './core/spatialHash';
+import { World } from './world/world';
+import { KIN_TAG_LENGTH, Population } from './organisms/population';
+import {
+  GENOME_LENGTH,
+  Locus,
+  geneticDistance,
+  makeMutationTally,
+  type MutationTally,
+} from './genome/loci';
+import {
+  expressInto,
+  makePhenotype,
+  MAX_CONTEXT,
+  MAX_HIDDEN,
+  MAX_MEMORY,
+  type Phenotype,
+} from './genome/phenotype';
+import {
+  BRAIN_STRIDE,
+  INPUT_COUNT,
+  Input,
+  OUTPUT_COUNT,
+  Output,
+  PLASTIC_STRIDE,
+  SIGNAL_CHANNELS,
+  W1_OFFSET,
+  W2_OFFSET,
+  W1_SIZE,
+  W2_SIZE,
+  forward,
+  hebbianUpdate,
+  imitate,
+  randomizeBrain,
+} from './brain/brain';
+import {
+  copyBrain,
+  copyGenome,
+  crossoverBrain,
+  crossoverGenome,
+  inheritKinTags,
+  mutateBrain,
+  mutateGenome,
+  randomGenome,
+  randomKinTags,
+} from './evolution/reproduction';
+import { SpeciesRegistry } from './species/speciation';
+import { EventKind, EventLog } from './events/eventLog';
+import { WorldEventSystem, type WorldEventSpec } from './events/worldEvents';
+import { History, type SeriesKey } from '../analytics/history';
+import { encodeMemory, makeRecall, recallInto, type Recall } from './memory/memory';
+import {
+  accumulate as accumulateNiche,
+  describe as describeNiche,
+  makeNicheAccumulator,
+  type NicheAccumulator,
+  type NicheProfile,
+} from './analysis/niches';
+import { CONTEXT_COUNT, RESPONSE_COUNT, SignalAnalyzer } from './analysis/signals';
+import { CultureAnalyzer, type CultureReport } from './analysis/culture';
+import { Chronicle } from './analysis/chronicle';
+import {
+  SNAPSHOT_STRIDE,
+  SnapshotFlag,
+  type OrganismInspection,
+  type SpeciesSummary,
+  type Stats,
+} from './core/types';
+
+const SPATIAL_CELL = 48;
+const STATS_INTERVAL = 20;
+const HISTORY_INTERVAL = 60;
+/**
+ * Attention limit: the most neighbours one organism will consider in a tick.
+ * In a dense herd the true count runs into the hundreds, and scanning all of
+ * them is what dominates the tick cost. Capping it is also the more defensible
+ * model — no animal tracks 500 others simultaneously. The spatial query returns
+ * candidates nearest-first, so the ones dropped are the distant ones.
+ */
+const MAX_NEIGHBOR_CANDIDATES = 128;
+const TWO_PI = Math.PI * 2;
+/** Only every Nth organism feeds the signal analyzer, rotating each tick. */
+const SIGNAL_SAMPLE_STRIDE = 47;
+/** Soma drift beyond this counts as the organism having invented something. */
+const INNOVATION_THRESHOLD = 12;
+
+export class Simulation {
+  cfg: SimConfig;
+  rng: Rng;
+  world: World;
+  pop: Population;
+  spatial: SpatialHash;
+  species: SpeciesRegistry;
+  events: EventLog;
+  worldEvents: WorldEventSystem;
+  history: History;
+  signals = new SignalAnalyzer();
+  culture = new CultureAnalyzer();
+  chronicle = new Chronicle();
+  mutationTally: MutationTally = makeMutationTally();
+
+  tick = 0;
+
+  // Per-tick counters, reset every tick.
+  private birthsThisTick = 0;
+  private deathsThisTick = 0;
+  private killsThisTick = 0;
+  private sharesThisTick = 0;
+  // Rolling accumulators over the stats window.
+  private birthsWindow = 0;
+  private deathsWindow = 0;
+  private killsWindow = 0;
+  private sharesWindow = 0;
+  private windowTicks = 0;
+  totalBirths = 0;
+  totalDeaths = 0;
+  totalImitations = 0;
+
+  // Scratch — allocated once, reused forever.
+  private inputs = new Float32Array(INPUT_COUNT);
+  private hidden = new Float32Array(MAX_HIDDEN);
+  private outputs = new Float32Array(OUTPUT_COUNT);
+  private heard = new Float32Array(SIGNAL_CHANNELS);
+  private ctxFeatures = new Float32Array(CONTEXT_COUNT);
+  private responseFeatures = new Float32Array(RESPONSE_COUNT);
+  private recall: Recall = makeRecall();
+  private candidates = new Int32Array(MAX_NEIGHBOR_CANDIDATES);
+  private liveIndex: Int32Array;
+  private liveCount = 0;
+  private pendingDeaths: Int32Array;
+  private pendingDeathCount = 0;
+  private mateUsed: Uint8Array;
+  /** Heading unit vectors, recomputed once per tick. */
+  private cosH: Float32Array;
+  private sinH: Float32Array;
+  /** Per-organism observations kept for the stats/niche pass. */
+  private obsNeighbours: Float32Array;
+  private obsMovement: Float32Array;
+  private obsSignal: Float32Array;
+  private somaDrift: Float32Array;
+  private pheno: Phenotype = makePhenotype();
+  private childPheno: Phenotype = makePhenotype();
+  private grad = { x: 0, y: 0 };
+  private speciesPop = new Map<number, number>();
+  private niches = new Map<number, NicheAccumulator>();
+
+  // Snapshot buffer handed to the renderer (ping-ponged with the main thread).
+  private snapshot: Float32Array;
+
+  // Inspection capture for the currently selected organism.
+  selectedId = 0;
+  private selectedSlot = -1;
+  private capturedInputs = new Float32Array(INPUT_COUNT);
+  private capturedHidden = new Float32Array(MAX_HIDDEN);
+  private capturedOutputs = new Float32Array(OUTPUT_COUNT);
+
+  private stats: Stats = emptyStats();
+  private lastSpeciesCount = 0;
+
+  constructor(cfg: Partial<SimConfig> = {}) {
+    this.cfg = { ...DEFAULT_CONFIG, ...cfg };
+    this.rng = new Rng(this.cfg.seed);
+    this.world = new World(this.cfg, this.rng);
+    this.pop = new Population(this.cfg.maxPopulation);
+    this.spatial = new SpatialHash(this.cfg.worldSize, SPATIAL_CELL, this.cfg.maxPopulation);
+    this.species = new SpeciesRegistry();
+    this.events = new EventLog();
+    this.worldEvents = new WorldEventSystem();
+    this.history = new History(1024);
+    this.pendingDeaths = new Int32Array(this.cfg.maxPopulation);
+    this.mateUsed = new Uint8Array(this.cfg.maxPopulation);
+    this.cosH = new Float32Array(this.cfg.maxPopulation);
+    this.sinH = new Float32Array(this.cfg.maxPopulation);
+    this.obsNeighbours = new Float32Array(this.cfg.maxPopulation);
+    this.obsMovement = new Float32Array(this.cfg.maxPopulation);
+    this.obsSignal = new Float32Array(this.cfg.maxPopulation);
+    this.somaDrift = new Float32Array(this.cfg.maxPopulation);
+    this.liveIndex = new Int32Array(this.cfg.maxPopulation);
+    this.snapshot = new Float32Array(this.cfg.maxPopulation * SNAPSHOT_STRIDE);
+    this.seedPopulation();
+  }
+
+  // ---------------------------------------------------------------- seeding
+
+  /**
+   * Founders get random genomes and random brains. No pre-trained behaviour,
+   * no starter strategy — generation 0 mostly wanders and starves, and the few
+   * that happen to move toward food are the ones that leave descendants.
+   */
+  private seedPopulation(): void {
+    const founder = this.species.create(
+      new Float32Array(GENOME_LENGTH).fill(0.5),
+      0,
+      0,
+      0,
+      0,
+      this.rng.next(),
+    );
+
+    // Founders are seeded as colonies rather than scattered uniformly. Spread
+    // evenly across a 4096-unit world, the nearest neighbour would be hundreds
+    // of units away and sexual reproduction would be geometrically impossible —
+    // the population would go extinct before selection had anything to act on.
+    const colonyCount = Math.max(1, Math.round(this.cfg.initialPopulation / 60));
+    const colonies: { x: number; y: number }[] = [];
+    for (let c = 0; c < colonyCount; c++) colonies.push(this.findLandSpawn());
+    const colonyRadius = this.world.size * 0.035;
+
+    for (let i = 0; i < this.cfg.initialPopulation; i++) {
+      const slot = this.pop.allocate();
+      if (slot < 0) break;
+      const go = this.pop.genomeOffset(slot);
+      randomGenome(this.pop.genome, go, this.rng);
+      randomizeBrain(this.pop.brain, this.pop.brainOffset(slot), () => this.rng.next());
+      randomKinTags(this.pop.kinTag, this.pop.kinTagOffset(slot), this.rng);
+      this.pop.resetSlot(slot);
+
+      const home = colonies[i % colonyCount];
+      const a = this.rng.next() * TWO_PI;
+      const r = Math.sqrt(this.rng.next()) * colonyRadius;
+      const x = Math.min(this.world.size - 1, Math.max(1, home.x + Math.cos(a) * r));
+      const y = Math.min(this.world.size - 1, Math.max(1, home.y + Math.sin(a) * r));
+      this.pop.x[slot] = x;
+      this.pop.y[slot] = y;
+      this.pop.heading[slot] = this.rng.next() * TWO_PI;
+      this.pop.id[slot] = this.pop.nextId++;
+      this.pop.speciesId[slot] = founder.id;
+      this.pop.generation[slot] = 0;
+      this.pop.parentA[slot] = 0;
+      this.pop.parentB[slot] = 0;
+      this.pop.birthTick[slot] = 0;
+      this.pop.matriline[slot] = this.pop.id[slot];
+      this.pop.memeTag[slot] = this.pop.id[slot];
+      this.culture.noteMemeBirth(this.pop.id[slot], 0, this.pop.id[slot]);
+
+      expressInto(this.pheno, this.pop.genome, go);
+      this.pop.applyPhenotype(slot, this.pheno);
+      this.pop.energy[slot] = this.pheno.maxEnergy * 0.95;
+      this.pop.health[slot] = 1;
+
+      founder.population++;
+      founder.totalBorn++;
+    }
+    founder.peakPopulation = founder.population;
+    this.speciesPop.set(founder.id, founder.population);
+    this.events.push({
+      tick: 0,
+      kind: EventKind.Milestone,
+      text: `World seeded with ${this.pop.livingCount} founders (seed ${this.cfg.seed})`,
+    });
+  }
+
+  /**
+   * Rejection-sample a productive land cell. The fertility bar is deliberately
+   * high: a colony seeded on marginal ground starves before any of its random
+   * brains has a chance to be selected, which is noise rather than selection.
+   * The bar relaxes if the world has little good land, so an ocean world still
+   * places its founders somewhere.
+   */
+  private findLandSpawn(): { x: number; y: number } {
+    let best = { x: this.world.size * 0.5, y: this.world.size * 0.5 };
+    let bestFertility = -1;
+    for (let attempt = 0; attempt < 96; attempt++) {
+      const x = this.rng.range(0, this.world.size);
+      const y = this.rng.range(0, this.world.size);
+      const i = this.world.index(x, y);
+      if (this.world.elevation[i] <= this.cfg.waterLevel + 0.02) continue;
+      const f = this.world.fertility[i];
+      if (f > 0.35) return { x, y };
+      if (f > bestFertility) {
+        bestFertility = f;
+        best = { x, y };
+      }
+    }
+    return best;
+  }
+
+  // ------------------------------------------------------------------- tick
+
+  step(): void {
+    const cfg = this.cfg;
+    this.birthsThisTick = 0;
+    this.deathsThisTick = 0;
+    this.killsThisTick = 0;
+    this.sharesThisTick = 0;
+    this.pendingDeathCount = 0;
+
+    this.worldEvents.update(cfg);
+    this.world.step(cfg, this.tick);
+
+    const pop = this.pop;
+    const n = pop.count;
+    this.spatial.build(pop.alive, pop.x, pop.y, n);
+    this.mateUsed.fill(0, 0, n);
+
+    // Heading unit vectors for the whole population, once. Neighbour alignment
+    // sensing needs cos/sin of every nearby organism's heading; computing them
+    // inside the neighbour loop meant millions of trig calls per tick. Doing it
+    // here also means every organism senses the *same* pre-action headings,
+    // which makes the tick a proper simultaneous update rather than one where
+    // later slots see earlier slots' new state.
+    for (let i = 0; i < n; i++) {
+      if (!pop.alive[i]) continue;
+      this.cosH[i] = Math.cos(pop.heading[i]);
+      this.sinH[i] = Math.sin(pop.heading[i]);
+    }
+
+    const waterLevel = cfg.waterLevel + this.worldEvents.floodOffset;
+
+    for (let i = 0; i < n; i++) {
+      if (!pop.alive[i]) continue;
+      // Skip organisms born during this very tick — they act from the next one.
+      if (pop.birthTick[i] === this.tick && this.tick > 0) continue;
+      this.stepOrganism(i, waterLevel);
+    }
+
+    this.processDeaths();
+
+    this.tick++;
+    this.birthsWindow += this.birthsThisTick;
+    this.deathsWindow += this.deathsThisTick;
+    this.killsWindow += this.killsThisTick;
+    this.sharesWindow += this.sharesThisTick;
+    this.windowTicks++;
+
+    if (this.tick % STATS_INTERVAL === 0) this.computeStats();
+    if (this.tick % HISTORY_INTERVAL === 0) this.recordHistory();
+  }
+
+  // --------------------------------------------------- one organism, one tick
+
+  private stepOrganism(i: number, waterLevel: number): void {
+    const pop = this.pop;
+    const cfg = this.cfg;
+    const world = this.world;
+    const dt = cfg.dt;
+
+    const px = pop.x[i];
+    const py = pop.y[i];
+    const ci = world.index(px, py);
+    const heading = pop.heading[i];
+    const cosH = this.cosH[i];
+    const sinH = this.sinH[i];
+
+    const inputs = this.inputs;
+    inputs.fill(0);
+    inputs[Input.Bias] = 1;
+
+    const maxE = pop.maxEnergy[i];
+    const energyFrac = maxE > 0 ? pop.energy[i] / maxE : 0;
+    inputs[Input.Energy] = energyFrac * 2 - 1;
+    inputs[Input.Hunger] = 1 - energyFrac * 2;
+    inputs[Input.Health] = pop.health[i] * 2 - 1;
+    const ageFrac = pop.age[i] / pop.lifespan[i];
+    inputs[Input.AgeFraction] = ageFrac * 2 - 1;
+
+    const speed = Math.hypot(pop.vx[i], pop.vy[i]);
+    inputs[Input.Speed] = Math.min(1, speed / (pop.maxSpeed[i] + 1e-3));
+
+    // ---- environment ----
+    const temp = world.temperatureAt(ci, cfg);
+    const tempStress = (temp - pop.tempPreference[i]) / (pop.tempTolerance[i] + 1e-3);
+    inputs[Input.TempStress] = clamp(tempStress, -3, 3) / 3;
+
+    const elev = world.elevation[ci];
+    const depth = Math.max(0, waterLevel - elev);
+    const inWater = depth > 0;
+    inputs[Input.WaterDepth] = Math.min(1, depth * 6);
+
+    world.gradient(world.elevation, px, py, this.grad);
+    inputs[Input.SlopeX] = clamp((this.grad.x * cosH + this.grad.y * sinH) * 40, -1, 1);
+    inputs[Input.SlopeY] = clamp((-this.grad.x * sinH + this.grad.y * cosH) * 40, -1, 1);
+    inputs[Input.Light] = world.light * 2 - 1;
+
+    const veg = world.vegetation[ci];
+    inputs[Input.Vegetation] = Math.min(1, veg * 2.5);
+    world.gradient(world.vegetation, px, py, this.grad);
+    const gvx = this.grad.x * 30;
+    const gvy = this.grad.y * 30;
+    inputs[Input.VegGradX] = clamp(gvx * cosH + gvy * sinH, -1, 1);
+    inputs[Input.VegGradY] = clamp(-gvx * sinH + gvy * cosH, -1, 1);
+    inputs[Input.Carrion] = Math.min(1, world.carrion[ci] * 0.05);
+
+    const sens = pop.signalSensitivity[i];
+    const s0 = world.sample(world.signal0, px, py);
+    const s1 = world.sample(world.signal1, px, py);
+    inputs[Input.PheromoneA] = Math.min(1, s0 * sens);
+    inputs[Input.PheromoneB] = Math.min(1, s1 * sens);
+    world.gradient(world.signal0, px, py, this.grad);
+    const gsx = this.grad.x * 60 * sens;
+    const gsy = this.grad.y * 60 * sens;
+    inputs[Input.PheromoneAGradX] = clamp(gsx * cosH + gsy * sinH, -1, 1);
+    inputs[Input.PheromoneAGradY] = clamp(-gsx * sinH + gsy * cosH, -1, 1);
+
+    // ---- episodic memory ----
+    const memSlots = pop.memorySlots[i];
+    recallInto(
+      pop.memX,
+      pop.memY,
+      pop.memValence,
+      pop.memStrength,
+      pop.memoryOffset(i),
+      memSlots,
+      px,
+      py,
+      pop.memoryDecay[i],
+      this.recall,
+    );
+    inputs[Input.MemoryValueHere] = clamp(this.recall.valueHere, -1, 1);
+    inputs[Input.MemoryBestDX] = this.recall.bestDX * cosH + this.recall.bestDY * sinH;
+    inputs[Input.MemoryBestDY] = -this.recall.bestDX * sinH + this.recall.bestDY * cosH;
+    inputs[Input.MemoryWorstDX] = this.recall.worstDX * cosH + this.recall.worstDY * sinH;
+    inputs[Input.MemoryWorstDY] = -this.recall.worstDX * sinH + this.recall.worstDY * cosH;
+    inputs[Input.MemoryLoad] = Math.min(1, this.recall.load);
+
+    // ---- neighbours ----
+    const vision = pop.visionRange[i];
+    const hearing = pop.hearingRange[i];
+    const scanRadius = Math.max(
+      vision,
+      hearing,
+      cfg.matingRange,
+      cfg.attackRange + pop.radius[i],
+    );
+    const cnt = this.spatial.queryInto(px, py, scanRadius, this.candidates);
+
+    const heard = this.heard;
+    heard.fill(0);
+    let nearest = -1;
+    let nearestScore = Infinity;
+    let nearestD2 = 0;
+    let second = -1;
+    let secondScore = Infinity;
+    let density = 0;
+    let alignX = 0;
+    let alignY = 0;
+    let relatednessSum = 0;
+    let heardWeight = 0;
+    const acuity = pop.visionAcuity[i];
+    const vision2 = vision * vision;
+    const hearing2 = hearing * hearing;
+
+    for (let k = 0; k < cnt; k++) {
+      const j = this.candidates[k];
+      if (j === i || !pop.alive[j]) continue;
+      const dx = pop.x[j] - px;
+      const dy = pop.y[j] - py;
+      const d2 = dx * dx + dy * dy;
+
+      // Hearing is a separate channel from sight with its own range, so an
+      // organism can be heard without being seen — which is what makes an
+      // audible signal worth anything different from just looking.
+      if (d2 <= hearing2 && d2 > 0) {
+        const w = 1 - Math.sqrt(d2) / (hearing + 1e-3);
+        const eo = pop.emittedOffset(j);
+        const gain = pop.signalGain[j] * w;
+        for (let c = 0; c < SIGNAL_CHANNELS; c++) heard[c] += pop.emitted[eo + c] * gain;
+        heardWeight += w;
+      }
+
+      if (d2 > vision2) continue;
+      density++;
+      alignX += this.cosH[j];
+      alignY += this.sinH[j];
+      relatednessSum += pop.relatedness(i, j);
+      // Camouflage inflates the *apparent* distance, so a hiding organism is
+      // less likely to become the focus of attention. Big things are easier to
+      // spot. Low acuity blurs the ranking, making poor eyes genuinely worse.
+      const apparent =
+        d2 * (1 + pop.camouflage[j] * 1.8) * (1 / (0.4 + pop.radius[j] * 0.12)) *
+        (1 + (1 - acuity) * 0.9);
+      if (apparent < nearestScore) {
+        second = nearest;
+        secondScore = nearestScore;
+        nearest = j;
+        nearestScore = apparent;
+        nearestD2 = d2;
+      } else if (apparent < secondScore) {
+        second = j;
+        secondScore = apparent;
+      }
+    }
+
+    if (heardWeight > 0) {
+      const inv = sens / heardWeight;
+      for (let c = 0; c < SIGNAL_CHANNELS; c++) {
+        heard[c] = Math.min(1, heard[c] * inv);
+        inputs[Input.Heard0 + c] = heard[c];
+      }
+    }
+
+    let nearestRelatedness = 0;
+    if (nearest >= 0) {
+      const dx = pop.x[nearest] - px;
+      const dy = pop.y[nearest] - py;
+      const d = Math.sqrt(nearestD2) + 1e-4;
+      const ex = (dx * cosH + dy * sinH) / d;
+      const ey = (-dx * sinH + dy * cosH) / d;
+      const prox = Math.max(0, 1 - d / vision);
+      inputs[Input.NeighborDX] = ex;
+      inputs[Input.NeighborDY] = ey;
+      inputs[Input.NeighborProximity] = prox * 2 - 1;
+      inputs[Input.NeighborSizeRatio] = clamp(pop.radius[nearest] / pop.radius[i] - 1, -1, 1);
+      const gd = geneticDistance(
+        pop.genome,
+        pop.genomeOffset(i),
+        pop.genome,
+        pop.genomeOffset(nearest),
+      );
+      inputs[Input.NeighborSimilarity] = 1 - Math.min(1, gd * 3);
+      nearestRelatedness = pop.relatedness(i, nearest);
+      inputs[Input.NeighborRelatedness] = nearestRelatedness * 2 - 1;
+      inputs[Input.NeighborSpeed] = Math.min(
+        1,
+        Math.hypot(pop.vx[nearest], pop.vy[nearest]) / (pop.maxSpeed[i] + 1e-3),
+      );
+      pop.socialContacts[i]++;
+    }
+    if (second >= 0) {
+      const dx = pop.x[second] - px;
+      const dy = pop.y[second] - py;
+      const d = Math.hypot(dx, dy) + 1e-4;
+      inputs[Input.SecondDX] = (dx * cosH + dy * sinH) / d;
+      inputs[Input.SecondDY] = (-dx * sinH + dy * cosH) / d;
+    }
+
+    inputs[Input.Density] = Math.min(1, density / 12) * 2 - 1;
+    if (density > 0) {
+      const inv = 1 / density;
+      const ax = alignX * inv;
+      const ay = alignY * inv;
+      // Egocentric mean heading of the neighbourhood: the raw ingredient a
+      // flocking rule would need, offered without any flocking rule attached.
+      inputs[Input.AlignX] = ax * cosH + ay * sinH;
+      inputs[Input.AlignY] = -ax * sinH + ay * cosH;
+      inputs[Input.CrowdRelatedness] = (relatednessSum * inv) * 2 - 1;
+    }
+
+    inputs[Input.Pain] = Math.min(1, pop.pain[i]) * 2 - 1;
+    inputs[Input.Reward] = clamp(pop.reward[i], -1, 1);
+
+    // ---- think ----
+    const hiddenSize = pop.hiddenSize[i];
+    const contextSize = pop.contextSize[i];
+    forward(
+      pop.brain,
+      pop.brainOffset(i),
+      pop.plastic,
+      pop.plasticOffset(i),
+      inputs,
+      pop.context,
+      pop.contextOffset(i),
+      this.hidden,
+      this.outputs,
+      hiddenSize,
+      contextSize,
+    );
+    const out = this.outputs;
+
+    if (pop.id[i] === this.selectedId) {
+      this.selectedSlot = i;
+      this.capturedInputs.set(inputs);
+      this.capturedHidden.set(this.hidden);
+      this.capturedOutputs.set(out);
+    }
+
+    // ---- act ----
+    let flags = 0;
+    let energyDelta = 0;
+    let plantGain = 0;
+    let carrionGain = 0;
+    let preyGain = 0;
+    let attacked = 0;
+
+    const rest = Math.max(0, out[Output.Rest]);
+    const effort = 1 - rest * 0.85;
+
+    // Locomotion. Terrain modulates achievable speed: an organism with a high
+    // water affinity swims well and walks badly, and vice versa.
+    const terrainFactor = inWater
+      ? 0.2 + pop.waterAffinity[i] * 0.95
+      : 0.35 + (1 - pop.waterAffinity[i]) * 0.85;
+
+    pop.heading[i] = heading + out[Output.Turn] * pop.turnRate[i] * dt * effort;
+    if (pop.heading[i] > TWO_PI) pop.heading[i] -= TWO_PI;
+    else if (pop.heading[i] < 0) pop.heading[i] += TWO_PI;
+
+    const sprint = 1 + Math.max(0, out[Output.Sprint]) * 0.8;
+    const desired = out[Output.Thrust] * pop.maxSpeed[i] * terrainFactor * effort * sprint;
+    const nh = pop.heading[i];
+    const tvx = Math.cos(nh) * desired;
+    const tvy = Math.sin(nh) * desired;
+    // First-order lag toward the desired velocity: gives inertia without a
+    // full physics integrator, and keeps big organisms feeling heavy.
+    const agility = 0.35 / (1 + pop.mass[i] * 0.02);
+    pop.vx[i] += (tvx - pop.vx[i]) * agility;
+    pop.vy[i] += (tvy - pop.vy[i]) * agility;
+
+    let nx = px + pop.vx[i] * dt;
+    let ny = py + pop.vy[i] * dt;
+    const bound = this.world.size - 1;
+    if (nx < 1) {
+      nx = 1;
+      pop.vx[i] *= -0.4;
+    } else if (nx > bound) {
+      nx = bound;
+      pop.vx[i] *= -0.4;
+    }
+    if (ny < 1) {
+      ny = 1;
+      pop.vy[i] *= -0.4;
+    } else if (ny > bound) {
+      ny = bound;
+      pop.vy[i] *= -0.4;
+    }
+    const moved = Math.hypot(nx - px, ny - py);
+    pop.x[i] = nx;
+    pop.y[i] = ny;
+    pop.distanceTravelled[i] += moved;
+    this.obsMovement[i] = moved;
+
+    const actualSpeed = moved / dt;
+    energyDelta -=
+      cfg.movementCostCoefficient *
+      Math.pow(pop.mass[i], 0.75) *
+      Math.pow(actualSpeed, 1.5) *
+      dt;
+
+    // ---- feeding ----
+    if (out[Output.Eat] > 0.05) {
+      const bite = cfg.grazeRate * (pop.radius[i] / 4) * effort;
+      const plantEff = pop.plantEfficiency[i];
+      const meatEff = pop.meatEfficiency[i];
+      if (world.vegetation[ci] > 0 && plantEff > 0.01) {
+        const take = Math.min(bite, world.vegetation[ci]);
+        world.vegetation[ci] -= take;
+        plantGain = take * cfg.vegetationEnergyDensity * plantEff;
+        energyDelta += plantGain;
+        pop.plantEaten[i] += take;
+        flags |= SnapshotFlag.Eating;
+      }
+      if (world.carrion[ci] > 0 && meatEff > 0.01) {
+        // Carrion is stored in energy units, so carrionEnergyDensity is a
+        // feeding *rate*: how much of a corpse one bite can process. Storing it
+        // as biomass instead made the constant cancel out of the model
+        // entirely — corpses were deposited divided by it and eaten multiplied
+        // by it, so turning the dial changed nothing.
+        const take = Math.min(bite * cfg.carrionEnergyDensity, world.carrion[ci]);
+        world.carrion[ci] -= take;
+        carrionGain = take * meatEff;
+        energyDelta += carrionGain;
+        pop.meatEaten[i] += take;
+        flags |= SnapshotFlag.Eating;
+      }
+    }
+
+    // ---- attacking ----
+    if (pop.attackCooldown[i] > 0) pop.attackCooldown[i]--;
+    if (out[Output.Attack] > 0.3 && pop.attackCooldown[i] <= 0 && nearest >= 0) {
+      const reach = cfg.attackRange + pop.radius[i] + pop.radius[nearest];
+      if (nearestD2 <= reach * reach) {
+        energyDelta -= cfg.attackCost * pop.mass[i] * 0.05;
+        pop.attackCooldown[i] = cfg.attackCooldownTicks;
+        flags |= SnapshotFlag.Attacking;
+        attacked = 1;
+        const t = nearest;
+        const raw = Math.max(0, pop.attackDamage[i] - pop.armor[t]);
+        const dmg = raw / (8 + pop.mass[t] * 0.35);
+        if (dmg > 0) {
+          pop.health[t] -= dmg;
+          pop.pain[t] = Math.min(2, pop.pain[t] + dmg * 2);
+          // Flesh torn off in the strike. This is what makes predation pay —
+          // and only for a gut that can process meat.
+          const flesh = dmg * pop.maxEnergy[t] * 0.35;
+          const stolen = Math.min(flesh, pop.energy[t]);
+          pop.energy[t] -= stolen;
+          preyGain = stolen * pop.meatEfficiency[i];
+          energyDelta += preyGain;
+          pop.preyEaten[i] += stolen;
+        }
+        // Retaliation: spikes hurt the attacker regardless of intent.
+        if (pop.spikes[t] > 0) {
+          const back = pop.spikes[t] / (8 + pop.mass[i] * 0.35);
+          pop.health[i] -= back;
+          pop.pain[i] = Math.min(2, pop.pain[i] + back * 2);
+        }
+        if (pop.health[t] <= 0) {
+          pop.kills[i]++;
+          this.killsThisTick++;
+          this.markDead(t);
+        }
+      }
+    }
+
+    // ---- broadcasting ----
+    const sg = pop.signalGain[i];
+    const eo = pop.emittedOffset(i);
+    let signalTotal = 0;
+    for (let c = 0; c < SIGNAL_CHANNELS; c++) {
+      const v = Math.max(0, out[Output.Signal0 + c]);
+      pop.emitted[eo + c] = v;
+      signalTotal += v;
+    }
+    this.obsSignal[i] = signalTotal;
+    // Broadcasting is metabolically real, otherwise everything screams
+    // constantly and the channel carries no information.
+    if (signalTotal > 0.05) {
+      energyDelta -= signalTotal * sg * cfg.signalCost;
+      flags |= SnapshotFlag.Signalling;
+    }
+
+    // Persistent pheromone fields are a separate modality from broadcasting:
+    // they stay behind after the organism leaves, which is what makes trails
+    // and territory marks possible at all.
+    const pa = Math.max(0, out[Output.PheromoneA]);
+    const pb = Math.max(0, out[Output.PheromoneB]);
+    if (pa > 0.05 || pb > 0.05) {
+      const dep = cfg.signalDeposit * sg;
+      world.signal0[ci] += pa * dep;
+      world.signal1[ci] += pb * dep;
+      energyDelta -= (pa + pb) * sg * cfg.signalCost;
+    }
+
+    // ---- energy sharing ----
+    // A general transfer mechanism, not a "feed your young" rule. Whether it
+    // ever gets used on kin, on mates, on strangers, or never, is decided by
+    // selection acting on whatever the network does with the Share output.
+    if (out[Output.Share] > 0.4 && nearest >= 0 && pop.energy[i] > 0) {
+      const reach = cfg.matingRange + pop.radius[i];
+      if (nearestD2 <= reach * reach) {
+        const amount = Math.min(pop.energy[i] + energyDelta, maxE * cfg.shareRate);
+        if (amount > 0) {
+          energyDelta -= amount;
+          const received = amount * cfg.shareEfficiency;
+          const t = nearest;
+          pop.energy[t] = Math.min(pop.maxEnergy[t], pop.energy[t] + received);
+          pop.energyGiven[i] += amount;
+          pop.energyReceived[t] += received;
+          this.sharesThisTick++;
+        }
+      }
+    }
+
+    // ---- social learning ----
+    const socialRate = pop.socialLearningRate[i];
+    if (out[Output.Imitate] > 0.35 && socialRate > 0.01 && nearest >= 0) {
+      const reach = cfg.imitationRange + pop.radius[i];
+      if (nearestD2 <= reach * reach) {
+        const rate = socialRate * Math.min(1, out[Output.Imitate]);
+        imitate(pop.plastic, pop.plasticOffset(i), pop.plasticOffset(nearest), rate);
+        energyDelta -= cfg.imitationCost * rate;
+        pop.imitations[i]++;
+        this.totalImitations++;
+        this.culture.noteImitation();
+        // A strong enough copy means this organism is now running somebody
+        // else's learned behaviour, so it carries that lineage's tag. This is
+        // the only place a meme changes hands horizontally.
+        if (rate > 0.12) pop.memeTag[i] = pop.memeTag[nearest];
+      }
+    }
+
+    // ---- reproduction ----
+    const mature = pop.age[i] >= pop.maturationAge[i];
+    if (!mature) flags |= SnapshotFlag.Juvenile;
+    if (pop.reproCooldown[i] > 0) pop.reproCooldown[i]--;
+    let readyToMate = 0;
+    if (
+      out[Output.Mate] > 0.2 &&
+      mature &&
+      pop.reproCooldown[i] <= 0 &&
+      energyFrac >= pop.reproThreshold[i] &&
+      !this.mateUsed[i]
+    ) {
+      readyToMate = 1;
+      // Everything spent so far this tick is already committed, so the budget
+      // for reproduction is what would actually remain. Without this the parent
+      // can overdraw, get clamped back to zero, and the deficit turns into free
+      // energy inside its offspring.
+      const budget = Math.max(0, pop.energy[i] + energyDelta);
+      const partner = this.findMate(i, cnt);
+      if (partner >= 0) {
+        flags |= SnapshotFlag.Mating;
+        energyDelta -= this.reproduce(i, partner, budget);
+      } else {
+        // No compatible partner nearby: self-replicate at a premium. Sexual
+        // reproduction splits the cost between two parents and skips the
+        // penalty, so it is ~2.7x cheaper per offspring — but only when
+        // somebody compatible is actually within range. The two strategies
+        // compete on energy, not on a designer's preference.
+        flags |= SnapshotFlag.Mating;
+        energyDelta -= this.reproduce(i, -1, budget);
+      }
+    }
+
+    // ---- metabolism, environment stress, ageing ----
+    let cost = pop.upkeep[i] * cfg.basalMetabolicCost * (1 - rest * 0.45);
+    const stress = Math.abs(tempStress);
+    if (stress > 1) cost += (stress - 1) * (stress - 1) * cfg.temperatureStressCost * pop.mass[i] * 0.02;
+    energyDelta -= cost;
+
+    if (inWater && pop.waterAffinity[i] < 0.5) {
+      pop.health[i] -= cfg.drowningDamage * (0.5 - pop.waterAffinity[i]) * 2 * dt;
+    }
+
+    pop.energy[i] += energyDelta;
+    if (pop.energy[i] > maxE) pop.energy[i] = maxE;
+    if (pop.energy[i] <= 0) {
+      pop.energy[i] = 0;
+      pop.health[i] -= 0.02; // starvation is gradual, so recovery is possible
+    } else if (pop.energy[i] > maxE * 0.5 && pop.health[i] < 1) {
+      pop.health[i] = Math.min(1, pop.health[i] + 0.0025);
+    }
+
+    pop.age[i]++;
+    // Senescence: the last fifth of the lifespan degrades health.
+    if (pop.age[i] > pop.lifespan[i] * 0.8) {
+      pop.health[i] -= 0.0012 * (pop.age[i] / pop.lifespan[i]);
+    }
+
+    // ---- learning ----
+    const netGain = energyDelta / (maxE * 0.02 + 1);
+    pop.reward[i] = pop.reward[i] * 0.9 + netGain * 0.1;
+    pop.pain[i] *= 0.92;
+    const plasticity = pop.plasticity[i];
+    if (plasticity > 0) {
+      // Reward is the change in wellbeing, not a designer-supplied score:
+      // energy gained minus pain felt. What it means to "do well" is left to
+      // the energy economy.
+      const signal = clamp(pop.reward[i] * 3 - pop.pain[i], -1, 1);
+      const drift = hebbianUpdate(
+        pop.plastic,
+        pop.plasticOffset(i),
+        this.hidden,
+        out,
+        hiddenSize,
+        signal,
+        plasticity,
+      );
+      // An organism that has substantially reshaped its own behaviour through
+      // experience is running something it worked out itself, so it becomes the
+      // origin of a new meme rather than continuing to carry its parent's.
+      this.somaDrift[i] += drift;
+      if (this.somaDrift[i] > INNOVATION_THRESHOLD) {
+        this.somaDrift[i] = 0;
+        pop.memeTag[i] = pop.id[i];
+        this.culture.noteMemeBirth(pop.id[i], this.tick, pop.id[i]);
+      }
+    }
+
+    // ---- memory encoding ----
+    // A place is worth remembering when something notable happened there. The
+    // valence is the organism's own reward signal, so what counts as notable is
+    // set by the energy economy rather than by a list of interesting events.
+    if (memSlots > 0) {
+      const valence = clamp(netGain * 2 - pop.pain[i] * 1.5, -1.5, 1.5);
+      encodeMemory(
+        pop.memX,
+        pop.memY,
+        pop.memValence,
+        pop.memStrength,
+        pop.memoryOffset(i),
+        memSlots,
+        px,
+        py,
+        valence,
+      );
+    }
+
+    this.obsNeighbours[i] = density;
+
+    // ---- telemetry sample for signal semantics ----
+    if ((i + this.tick) % SIGNAL_SAMPLE_STRIDE === 0) {
+      const c = this.ctxFeatures;
+      c[0] = 1 - energyFrac;
+      c[1] = 1 - pop.health[i];
+      c[2] =
+        nearest >= 0
+          ? Math.max(0, pop.radius[nearest] / pop.radius[i] - 1) *
+            pop.meatEfficiency[nearest] *
+            Math.max(0, 1 - Math.sqrt(nearestD2) / (vision + 1e-3))
+          : 0;
+      c[3] = Math.min(1, veg * 2.5 + world.carrion[ci] * 0.05);
+      c[4] = Math.min(1, density / 12);
+      c[5] = nearestRelatedness;
+      c[6] = readyToMate;
+      c[7] = attacked;
+
+      const r = this.responseFeatures;
+      r[0] = Math.abs(out[Output.Thrust]);
+      r[1] = Math.abs(out[Output.Turn]);
+      r[2] = Math.max(0, out[Output.Eat]);
+      r[3] = Math.max(0, out[Output.Attack]);
+      r[4] = Math.max(0, out[Output.Mate]);
+      r[5] = Math.max(0, out[Output.Sprint]);
+      r[6] = signalTotal / SIGNAL_CHANNELS;
+
+      this.signals.observe(pop.emitted, eo, c, heard, r);
+    }
+
+    // ---- death ----
+    if (pop.health[i] <= 0 || pop.age[i] >= pop.lifespan[i]) {
+      this.markDead(i);
+      return;
+    }
+
+    this.writeSnapshotEntry(i, flags);
+  }
+
+  // ---------------------------------------------------------- reproduction
+
+  private findMate(i: number, candidateCount: number): number {
+    const pop = this.pop;
+    const cfg = this.cfg;
+    const px = pop.x[i];
+    const py = pop.y[i];
+    const r = cfg.matingRange + pop.radius[i];
+    const r2 = r * r;
+    const gi = pop.genomeOffset(i);
+
+    for (let k = 0; k < candidateCount; k++) {
+      const j = this.candidates[k];
+      if (j === i || !pop.alive[j] || this.mateUsed[j]) continue;
+      if (pop.age[j] < pop.maturationAge[j] || pop.reproCooldown[j] > 0) continue;
+      const ej = pop.maxEnergy[j] > 0 ? pop.energy[j] / pop.maxEnergy[j] : 0;
+      if (ej < pop.reproThreshold[j]) continue;
+      const dx = pop.x[j] - px;
+      const dy = pop.y[j] - py;
+      if (dx * dx + dy * dy > r2) continue;
+      // Reproductive isolation: too much genetic distance and the pairing simply
+      // does not produce viable offspring. This is what lets a diverging
+      // population actually *split* instead of blending back together.
+      if (geneticDistance(pop.genome, gi, pop.genome, pop.genomeOffset(j)) > cfg.compatibilityThreshold)
+        continue;
+      return j;
+    }
+    return -1;
+  }
+
+  /**
+   * Produce a clutch. Returns the energy cost paid by organism `i`, which is
+   * never more than `budget`.
+   *
+   * Offspring are produced one at a time and each one is only born if both
+   * parents can actually afford their share. Energy is strictly conserved
+   * across the transfer: what the parents pay is what the children receive
+   * (plus the asexual penalty, which is burned, not created).
+   */
+  private reproduce(i: number, partner: number, budget: number): number {
+    const pop = this.pop;
+    const cfg = this.cfg;
+    const sexual = partner >= 0;
+    const clutch = pop.fecundity[i];
+    let totalCost = 0;
+    let remaining = budget;
+    let partnerRemaining = sexual ? Math.max(0, pop.energy[partner]) : 0;
+    let born = 0;
+
+    this.mateUsed[i] = 1;
+    if (sexual) this.mateUsed[partner] = 1;
+
+    for (let c = 0; c < clutch; c++) {
+      const slot = pop.allocate();
+      if (slot < 0) break;
+
+      const go = pop.genomeOffset(slot);
+      const bo = pop.brainOffset(slot);
+      const ko = pop.kinTagOffset(slot);
+      if (sexual) {
+        crossoverGenome(pop.genome, go, pop.genome, pop.genomeOffset(i), pop.genome, pop.genomeOffset(partner), this.rng);
+        crossoverBrain(pop.brain, bo, pop.brain, pop.brainOffset(i), pop.brain, pop.brainOffset(partner), this.rng);
+        inheritKinTags(
+          pop.kinTag,
+          ko,
+          pop.kinTag,
+          pop.kinTagOffset(i),
+          pop.kinTag,
+          pop.kinTagOffset(partner),
+          this.rng,
+          cfg.kinTagMutationRate,
+        );
+      } else {
+        copyGenome(pop.genome, go, pop.genome, pop.genomeOffset(i));
+        copyBrain(pop.brain, bo, pop.brain, pop.brainOffset(i));
+        inheritKinTags(
+          pop.kinTag,
+          ko,
+          pop.kinTag,
+          pop.kinTagOffset(i),
+          pop.kinTag,
+          pop.kinTagOffset(i),
+          this.rng,
+          cfg.kinTagMutationRate,
+        );
+      }
+
+      const rate = pop.mutationRate[i];
+      const genomeMutations = mutateGenome(pop.genome, go, cfg, this.rng, rate, this.mutationTally);
+      const brainMutations = mutateBrain(pop.brain, bo, cfg, this.rng, rate, this.mutationTally);
+
+      pop.resetSlot(slot);
+      expressInto(this.childPheno, pop.genome, go);
+      pop.applyPhenotype(slot, this.childPheno);
+      pop.mutations[slot] = Math.min(65535, genomeMutations + brainMutations);
+      this.somaDrift[slot] = 0;
+
+      const invest = this.childPheno.maxEnergy * this.childPheno.offspringEnergy;
+      const cost = invest * (sexual ? 1 : cfg.asexualEnergyPenalty);
+      // Each parent pays half of a sexual clutch.
+      const share = sexual ? cost * 0.5 : cost;
+      if (share > remaining || (sexual && share > partnerRemaining)) {
+        // Cannot afford this offspring. Hand the slot straight back — a clutch
+        // is limited by what the parents can actually provision.
+        pop.free(slot);
+        break;
+      }
+      remaining -= share;
+      if (sexual) {
+        partnerRemaining -= share;
+        pop.energy[partner] -= share;
+      }
+      totalCost += share;
+      born++;
+
+      pop.energy[slot] = invest;
+      pop.health[slot] = 1;
+      const angle = this.rng.next() * TWO_PI;
+      const dist = pop.radius[i] + this.childPheno.radius + this.rng.next() * 6;
+      pop.x[slot] = clamp(pop.x[i] + Math.cos(angle) * dist, 1, this.world.size - 1);
+      pop.y[slot] = clamp(pop.y[i] + Math.sin(angle) * dist, 1, this.world.size - 1);
+      pop.heading[slot] = this.rng.next() * TWO_PI;
+      pop.id[slot] = pop.nextId++;
+      pop.parentA[slot] = pop.id[i];
+      pop.parentB[slot] = sexual ? pop.id[partner] : 0;
+      pop.generation[slot] =
+        (sexual ? Math.max(pop.generation[i], pop.generation[partner]) : pop.generation[i]) + 1;
+      pop.birthTick[slot] = this.tick;
+      pop.matriline[slot] = pop.matriline[i];
+      // Culture passes down the generations as well as sideways: a newborn
+      // starts out carrying whatever behaviour its parent was running.
+      pop.memeTag[slot] = pop.memeTag[i];
+
+      const parentSpecies = pop.speciesId[i];
+      const sid = this.species.classify(
+        parentSpecies,
+        pop.genome,
+        go,
+        cfg.speciationThreshold,
+        this.tick,
+        pop.generation[slot],
+        this.childPheno.hue,
+      );
+      pop.speciesId[slot] = sid;
+      if (sid !== parentSpecies) {
+        const rec = this.species.species.get(sid);
+        this.events.push({
+          tick: this.tick,
+          kind: EventKind.Speciation,
+          text: `${rec?.name ?? sid} diverged from ${this.speciesNameOf(parentSpecies)} at generation ${pop.generation[slot]}`,
+          speciesId: sid,
+          x: pop.x[slot],
+          y: pop.y[slot],
+        });
+      }
+      this.addToSpecies(sid);
+      this.birthsThisTick++;
+      this.totalBirths++;
+      pop.children[i]++;
+      if (sexual) pop.children[partner]++;
+    }
+
+    // A failed attempt still costs the cooldown, so an organism that keeps
+    // trying to breed while too poor to provision anything pays for it.
+    const cooldown = born > 0 ? cfg.gestationTicks : Math.round(cfg.gestationTicks * 0.5);
+    pop.reproCooldown[i] = cooldown;
+    if (sexual) pop.reproCooldown[partner] = cooldown;
+    return totalCost;
+  }
+
+  private addToSpecies(sid: number): void {
+    const rec = this.species.species.get(sid);
+    if (!rec) return;
+    rec.population++;
+    rec.totalBorn++;
+    if (rec.population > rec.peakPopulation) rec.peakPopulation = rec.population;
+    this.speciesPop.set(sid, rec.population);
+  }
+
+  // ------------------------------------------------------------------ death
+
+  private markDead(slot: number): void {
+    if (!this.pop.alive[slot]) return;
+    if (this.pop.health[slot] > 0) this.pop.health[slot] = 0;
+    if (this.pendingDeathCount < this.pendingDeaths.length) {
+      this.pendingDeaths[this.pendingDeathCount++] = slot;
+    }
+  }
+
+  private processDeaths(): void {
+    const pop = this.pop;
+    const world = this.world;
+    const cfg = this.cfg;
+    for (let k = 0; k < this.pendingDeathCount; k++) {
+      const slot = this.pendingDeaths[k];
+      if (!pop.alive[slot]) continue;
+      const ci = world.index(pop.x[slot], pop.y[slot]);
+      // A corpse is not deleted matter — it returns to the world as carrion,
+      // which is exactly the resource that makes scavenging a viable niche.
+      // Most of the value is the energy the organism was carrying; the body
+      // tissue term is the modest extra that makes a large carcass worth more
+      // than a starved one.
+      world.carrion[ci] +=
+        (pop.energy[slot] * 0.7 + pop.mass[slot] * 1.4) * cfg.meatYield;
+
+      this.culture.noteOrganismDeath(pop.id[slot], this.tick);
+
+      const sid = pop.speciesId[slot];
+      const rec = this.species.species.get(sid);
+      if (rec) {
+        rec.population--;
+        rec.totalDied++;
+        this.speciesPop.set(sid, rec.population);
+        if (rec.population <= 0 && rec.extinctTick < 0) {
+          this.species.markExtinct(sid, this.tick);
+          this.niches.delete(sid);
+          this.events.push({
+            tick: this.tick,
+            kind: EventKind.Extinction,
+            text: `${rec.name} is extinct after ${this.tick - rec.originTick} ticks (peak ${rec.peakPopulation})`,
+            speciesId: sid,
+          });
+        }
+      }
+      if (pop.id[slot] === this.selectedId) this.selectedSlot = -1;
+      pop.free(slot);
+      this.deathsThisTick++;
+      this.totalDeaths++;
+    }
+    this.pendingDeathCount = 0;
+  }
+
+  private speciesNameOf(id: number): string {
+    return this.species.species.get(id)?.name ?? `#${id}`;
+  }
+
+  // ------------------------------------------------------------- rendering
+
+  private writeSnapshotEntry(i: number, flags: number): void {
+    const s = this.snapshot;
+    const o = i * SNAPSHOT_STRIDE;
+    const pop = this.pop;
+    s[o] = pop.x[i];
+    s[o + 1] = pop.y[i];
+    s[o + 2] = pop.heading[i];
+    s[o + 3] = pop.radius[i];
+    s[o + 4] = pop.hue[i];
+    s[o + 5] = pop.maxEnergy[i] > 0 ? pop.energy[i] / pop.maxEnergy[i] : 0;
+    s[o + 6] = pop.genome[pop.genomeOffset(i) + Locus.Muscle];
+    s[o + 7] = pop.genome[pop.genomeOffset(i) + Locus.Digestion];
+    s[o + 8] = Math.min(1, pop.armor[i] / 6.5);
+    s[o + 9] = flags | (pop.id[i] === this.selectedId ? SnapshotFlag.Selected : 0);
+  }
+
+  /**
+   * Compact the live organisms into the front of `target` and return the count.
+   * The renderer only ever sees a dense array.
+   */
+  fillSnapshot(target: Float32Array): number {
+    const pop = this.pop;
+    const src = this.snapshot;
+    let w = 0;
+    for (let i = 0; i < pop.count; i++) {
+      if (!pop.alive[i]) continue;
+      const o = i * SNAPSHOT_STRIDE;
+      // Organisms born this tick have no snapshot entry yet; synthesise one.
+      if (src[o + 3] === 0 || pop.birthTick[i] === this.tick) this.writeSnapshotEntry(i, 0);
+      for (let f = 0; f < SNAPSHOT_STRIDE; f++) target[w + f] = src[o + f];
+      w += SNAPSHOT_STRIDE;
+    }
+    return w / SNAPSHOT_STRIDE;
+  }
+
+  // ------------------------------------------------------------- statistics
+
+  private computeStats(): void {
+    const pop = this.pop;
+    const n = pop.count;
+    let count = 0;
+    let energy = 0;
+    let age = 0;
+    let lifespan = 0;
+    let brain = 0;
+    let size = 0;
+    let speed = 0;
+    let vision = 0;
+    let generation = 0;
+    let maxGen = 0;
+    let plasticity = 0;
+    let mutation = 0;
+    let carn = 0;
+    let carnCount = 0;
+    let aquatic = 0;
+    let memory = 0;
+    let hearing = 0;
+    let social = 0;
+    let groupSize = 0;
+
+    this.liveCount = 0;
+
+    for (let i = 0; i < n; i++) {
+      if (!pop.alive[i]) continue;
+      this.liveIndex[this.liveCount++] = i;
+      count++;
+      energy += pop.maxEnergy[i] > 0 ? pop.energy[i] / pop.maxEnergy[i] : 0;
+      age += pop.age[i];
+      lifespan += pop.lifespan[i];
+      brain += pop.hiddenSize[i] + pop.contextSize[i];
+      size += pop.radius[i];
+      speed += pop.maxSpeed[i];
+      vision += pop.visionRange[i];
+      generation += pop.generation[i];
+      if (pop.generation[i] > maxGen) maxGen = pop.generation[i];
+      plasticity += pop.plasticity[i];
+      mutation += pop.mutationRate[i];
+      memory += pop.memorySlots[i];
+      hearing += pop.hearingRange[i];
+      social += pop.socialLearningRate[i];
+      groupSize += this.obsNeighbours[i];
+      const d = pop.genome[pop.genomeOffset(i) + Locus.Digestion];
+      carn += d;
+      if (d > 0.5) carnCount++;
+      if (pop.waterAffinity[i] > 0.5) aquatic++;
+
+      this.updateNiche(i);
+    }
+
+    const inv = count > 0 ? 1 / count : 0;
+    let vegTotal = 0;
+    let carrionTotal = 0;
+    let signalTotal = 0;
+    const cells = this.world.grid * this.world.grid;
+    for (let i = 0; i < cells; i++) {
+      vegTotal += this.world.vegetation[i];
+      carrionTotal += this.world.carrion[i];
+      signalTotal += this.world.signal0[i] + this.world.signal1[i];
+    }
+    let broadcast = 0;
+    for (let k = 0; k < this.liveCount; k++) broadcast += this.obsSignal[this.liveIndex[k]];
+    broadcast *= inv;
+
+    const wt = this.windowTicks > 0 ? this.windowTicks : 1;
+    const cfg = this.cfg;
+    const dayLen = cfg.ticksPerDay;
+
+    this.culture.update(pop, this.spatial, this.rng, this.tick, wt, this.liveIndex, this.liveCount);
+    const cultureReport = this.culture.current();
+    const meanings = this.signals.meanings();
+    let bestMeaning = 0;
+    for (const m of meanings) if (m.confidence > bestMeaning) bestMeaning = m.confidence;
+
+    const livingSpecies = this.countLivingSpecies();
+    const lost = this.lastSpeciesCount > 0 ? Math.max(0, this.lastSpeciesCount - livingSpecies) / this.lastSpeciesCount : 0;
+    this.lastSpeciesCount = livingSpecies;
+
+    this.stats = {
+      tick: this.tick,
+      population: count,
+      livingSpecies,
+      totalSpeciesEverCreated: this.species.species.size,
+      extinctSpecies: this.species.species.size - livingSpecies,
+      births: this.totalBirths,
+      deaths: this.totalDeaths,
+      birthsPerTick: this.birthsWindow / wt,
+      deathsPerTick: this.deathsWindow / wt,
+      killsPerTick: this.killsWindow / wt,
+      sharesPerTick: this.sharesWindow / wt,
+      imitationsPerTick: cultureReport.imitationsPerTick,
+      avgEnergy: energy * inv,
+      avgAge: age * inv,
+      avgLifespan: lifespan * inv,
+      avgBrainSize: brain * inv,
+      avgSize: size * inv,
+      avgSpeed: speed * inv,
+      avgVision: vision * inv,
+      avgGeneration: generation * inv,
+      maxGeneration: maxGen,
+      avgPlasticity: plasticity * inv,
+      avgMutationRate: mutation * inv,
+      avgMemorySlots: memory * inv,
+      avgHearingRange: hearing * inv,
+      avgSocialLearning: social * inv,
+      avgGroupSize: groupSize * inv,
+      broadcastActivity: broadcast,
+      transmissionIndex: cultureReport.transmissionIndex,
+      distinctMemes: cultureReport.distinctMemes,
+      posthumousMemes: cultureReport.posthumousMemes,
+      signalMeaningConfidence: bestMeaning,
+      diversity: this.sampleDiversity(),
+      carnivory: carn * inv,
+      carnivoreFraction: count > 0 ? carnCount / count : 0,
+      aquaticFraction: count > 0 ? aquatic / count : 0,
+      totalVegetation: vegTotal,
+      totalCarrion: carrionTotal,
+      signalActivity: signalTotal,
+      temperature: 0.5 + cfg.globalTemperatureOffset + this.world.seasonalTemperature,
+      light: this.world.light,
+      day: Math.floor(this.tick / dayLen),
+      year: Math.floor(this.tick / (dayLen * cfg.daysPerYear)),
+      ticksPerSecond: this.stats.ticksPerSecond,
+      msPerTick: this.stats.msPerTick,
+    };
+
+    this.chronicle.update(this.tick, this.events, {
+      population: count,
+      species: livingSpecies,
+      generation: Math.round(generation * inv),
+      killsPerTick: this.stats.killsPerTick,
+      carnivory: this.stats.carnivory,
+      signalActivity: broadcast,
+      signalMeaningConfidence: bestMeaning,
+      transmissionIndex: cultureReport.transmissionIndex,
+      imitationsPerTick: cultureReport.imitationsPerTick,
+      posthumousMemes: cultureReport.posthumousMemes,
+      meanMemory: this.stats.avgMemorySlots,
+      meanGroupSize: this.stats.avgGroupSize,
+      sharingPerTick: this.stats.sharesPerTick,
+      brainSize: this.stats.avgBrainSize,
+      diversity: this.stats.diversity,
+      extinctionsInWindow: 0,
+      speciesLostFraction: lost,
+    });
+
+    this.birthsWindow = 0;
+    this.deathsWindow = 0;
+    this.killsWindow = 0;
+    this.sharesWindow = 0;
+    this.windowTicks = 0;
+  }
+
+  /** Fold one organism's situation into its species' niche profile. */
+  private updateNiche(i: number): void {
+    const pop = this.pop;
+    const sid = pop.speciesId[i];
+    let acc = this.niches.get(sid);
+    if (!acc) {
+      acc = makeNicheAccumulator();
+      this.niches.set(sid, acc);
+    }
+    const ci = this.world.index(pop.x[i], pop.y[i]);
+    const waterLevel = this.cfg.waterLevel + this.worldEvents.floodOffset;
+    accumulateNiche(
+      acc,
+      this.world.temperatureAt(ci, this.cfg),
+      this.world.elevation[ci],
+      this.world.moisture[ci],
+      Math.max(0, waterLevel - this.world.elevation[ci]),
+      this.world.light,
+      this.obsMovement[i],
+      this.world.biome[ci],
+      pop.plantEaten[i],
+      pop.meatEaten[i],
+      pop.preyEaten[i],
+      pop.radius[i],
+      pop.maxSpeed[i],
+      pop.visionRange[i],
+      pop.memorySlots[i],
+      this.obsSignal[i],
+      this.obsNeighbours[i],
+    );
+  }
+
+  private countLivingSpecies(): number {
+    let c = 0;
+    for (const s of this.species.species.values()) if (s.extinctTick < 0 && s.population > 0) c++;
+    return c;
+  }
+
+  /**
+   * Mean pairwise genetic distance over a random sample. Exact diversity is
+   * O(N^2); 256 sampled pairs tracks the real value closely enough for a chart
+   * and costs nothing. The sample is drawn from the deterministic stream, so it
+   * stays reproducible.
+   */
+  private sampleDiversity(): number {
+    const pop = this.pop;
+    if (this.liveCount < 2) return 0;
+    const samples = Math.min(256, this.liveCount * 2);
+    let sum = 0;
+    for (let s = 0; s < samples; s++) {
+      const a = this.liveIndex[this.rng.int(this.liveCount)];
+      const b = this.liveIndex[this.rng.int(this.liveCount)];
+      if (a === b) continue;
+      sum += geneticDistance(pop.genome, pop.genomeOffset(a), pop.genome, pop.genomeOffset(b));
+    }
+    return sum / samples;
+  }
+
+  private lastPopulationSample = 0;
+  private recordHistory(): void {
+    const s = this.stats;
+    const values = {
+      population: s.population,
+      species: s.livingSpecies,
+      births: s.birthsPerTick,
+      deaths: s.deathsPerTick,
+      avgEnergy: s.avgEnergy,
+      avgAge: s.avgAge,
+      avgLifespan: s.avgLifespan,
+      avgBrainSize: s.avgBrainSize,
+      avgSpeed: s.avgSpeed,
+      avgSize: s.avgSize,
+      avgVision: s.avgVision,
+      diversity: s.diversity,
+      carnivory: s.carnivory,
+      vegetation: s.totalVegetation,
+      carrion: s.totalCarrion,
+      temperature: s.temperature,
+      predationRate: s.killsPerTick,
+      avgGeneration: s.avgGeneration,
+      avgPlasticity: s.avgPlasticity,
+      signalActivity: s.signalActivity,
+      avgMemory: s.avgMemorySlots,
+      groupSize: s.avgGroupSize,
+      broadcast: s.broadcastActivity,
+      imitation: s.imitationsPerTick,
+      transmission: s.transmissionIndex,
+      sharing: s.sharesPerTick,
+    } as Record<SeriesKey, number>;
+    this.history.push(this.tick, values);
+
+    // Notice population shocks so the event log tells the story of the run.
+    const prev = this.lastPopulationSample;
+    if (prev > 60) {
+      if (s.population < prev * 0.55) {
+        this.events.push({
+          tick: this.tick,
+          kind: EventKind.PopulationCrash,
+          text: `Population crash: ${prev} → ${s.population}`,
+        });
+      } else if (s.population > prev * 1.9) {
+        this.events.push({
+          tick: this.tick,
+          kind: EventKind.PopulationBoom,
+          text: `Population boom: ${prev} → ${s.population}`,
+        });
+      }
+    }
+    this.lastPopulationSample = s.population;
+  }
+
+  getStats(): Stats {
+    return this.stats;
+  }
+
+  setPerformance(ticksPerSecond: number, msPerTick: number): void {
+    this.stats.ticksPerSecond = ticksPerSecond;
+    this.stats.msPerTick = msPerTick;
+  }
+
+  getCulture(): CultureReport {
+    return this.culture.current();
+  }
+
+  nicheOf(speciesId: number): NicheProfile | null {
+    const acc = this.niches.get(speciesId);
+    return acc && acc.samples > 12 ? describeNiche(acc) : null;
+  }
+
+  // ------------------------------------------------------------- inspection
+
+  speciesSummaries(limit = 40): SpeciesSummary[] {
+    const pop = this.pop;
+    const acc = new Map<
+      number,
+      { n: number; size: number; speed: number; brain: number; carn: number; memory: number; social: number; traits: Float32Array }
+    >();
+    for (let i = 0; i < pop.count; i++) {
+      if (!pop.alive[i]) continue;
+      const sid = pop.speciesId[i];
+      let a = acc.get(sid);
+      if (!a) {
+        a = {
+          n: 0,
+          size: 0,
+          speed: 0,
+          brain: 0,
+          carn: 0,
+          memory: 0,
+          social: 0,
+          traits: new Float32Array(GENOME_LENGTH),
+        };
+        acc.set(sid, a);
+      }
+      a.n++;
+      a.size += pop.radius[i];
+      a.speed += pop.maxSpeed[i];
+      a.brain += pop.hiddenSize[i] + pop.contextSize[i];
+      a.memory += pop.memorySlots[i];
+      a.social += pop.socialLearningRate[i];
+      const go = pop.genomeOffset(i);
+      a.carn += pop.genome[go + Locus.Digestion];
+      for (let g = 0; g < GENOME_LENGTH; g++) a.traits[g] += pop.genome[go + g];
+    }
+
+    const out: SpeciesSummary[] = [];
+    for (const [sid, a] of acc) {
+      const rec = this.species.species.get(sid);
+      if (!rec) continue;
+      const inv = 1 / a.n;
+      out.push({
+        id: sid,
+        name: rec.name,
+        ancestorId: rec.ancestorId,
+        population: a.n,
+        peakPopulation: rec.peakPopulation,
+        originTick: rec.originTick,
+        extinctTick: rec.extinctTick,
+        generationOrigin: rec.generationOrigin,
+        totalBorn: rec.totalBorn,
+        hue: rec.hue,
+        traits: Array.from(a.traits, (v) => v * inv),
+        avgSize: a.size * inv,
+        avgSpeed: a.speed * inv,
+        avgBrain: a.brain * inv,
+        avgMemory: a.memory * inv,
+        avgSocialLearning: a.social * inv,
+        carnivory: a.carn * inv,
+        niche: this.nicheOf(sid),
+      });
+    }
+    out.sort((x, y) => y.population - x.population);
+    return out.slice(0, limit);
+  }
+
+  extinctSummaries(limit = 200): SpeciesSummary[] {
+    const out: SpeciesSummary[] = [];
+    for (const rec of this.species.species.values()) {
+      if (rec.extinctTick < 0) continue;
+      out.push({
+        id: rec.id,
+        name: rec.name,
+        ancestorId: rec.ancestorId,
+        population: 0,
+        peakPopulation: rec.peakPopulation,
+        originTick: rec.originTick,
+        extinctTick: rec.extinctTick,
+        generationOrigin: rec.generationOrigin,
+        totalBorn: rec.totalBorn,
+        hue: rec.hue,
+        traits: Array.from(
+          this.species.representativeBuffer.subarray(
+            this.species.representativeOffset(rec.id),
+            this.species.representativeOffset(rec.id) + GENOME_LENGTH,
+          ),
+        ),
+        avgSize: 0,
+        avgSpeed: 0,
+        avgBrain: 0,
+        avgMemory: 0,
+        avgSocialLearning: 0,
+        carnivory: 0,
+        niche: null,
+      });
+    }
+    out.sort((a, b) => b.extinctTick - a.extinctTick);
+    return out.slice(0, limit);
+  }
+
+  /** Find the organism nearest to a world point, within `radius`. */
+  pick(x: number, y: number, radius: number): number {
+    const pop = this.pop;
+    let best = -1;
+    let bestD2 = radius * radius;
+    this.spatial.forEachInRadius(x, y, radius, (i) => {
+      if (!pop.alive[i]) return;
+      const dx = pop.x[i] - x;
+      const dy = pop.y[i] - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        best = i;
+      }
+    });
+    return best >= 0 ? pop.id[best] : 0;
+  }
+
+  select(id: number): void {
+    this.selectedId = id;
+    this.selectedSlot = -1;
+    if (id === 0) return;
+    for (let i = 0; i < this.pop.count; i++) {
+      if (this.pop.alive[i] && this.pop.id[i] === id) {
+        this.selectedSlot = i;
+        return;
+      }
+    }
+  }
+
+  inspect(): OrganismInspection | null {
+    const slot = this.selectedSlot;
+    const pop = this.pop;
+    if (slot < 0 || !pop.alive[slot] || pop.id[slot] !== this.selectedId) return null;
+
+    const go = pop.genomeOffset(slot);
+    const bo = pop.brainOffset(slot);
+    const po = pop.plasticOffset(slot);
+    const mo = pop.memoryOffset(slot);
+
+    // Effective output weights = inherited + learned, so the brain view shows
+    // what the organism is actually computing right now.
+    const w2 = new Array<number>(W2_SIZE);
+    for (let i = 0; i < W2_SIZE; i++) w2[i] = pop.brain[bo + W2_OFFSET + i] + pop.plastic[po + i];
+
+    const memories = [];
+    for (let s = 0; s < pop.memorySlots[slot]; s++) {
+      if (pop.memStrength[mo + s] <= 0.001) continue;
+      memories.push({
+        x: pop.memX[mo + s],
+        y: pop.memY[mo + s],
+        valence: pop.memValence[mo + s],
+        strength: pop.memStrength[mo + s],
+      });
+    }
+
+    return {
+      slot,
+      id: pop.id[slot],
+      speciesId: pop.speciesId[slot],
+      speciesName: this.speciesNameOf(pop.speciesId[slot]),
+      generation: pop.generation[slot],
+      parentA: pop.parentA[slot],
+      parentB: pop.parentB[slot],
+      matriline: pop.matriline[slot],
+      memeTag: pop.memeTag[slot],
+      age: pop.age[slot],
+      lifespan: pop.lifespan[slot],
+      maturationAge: pop.maturationAge[slot],
+      energy: pop.energy[slot],
+      maxEnergy: pop.maxEnergy[slot],
+      health: pop.health[slot],
+      x: pop.x[slot],
+      y: pop.y[slot],
+      heading: pop.heading[slot],
+      speed: Math.hypot(pop.vx[slot], pop.vy[slot]),
+      children: pop.children[slot],
+      kills: pop.kills[slot],
+      plantEaten: pop.plantEaten[slot],
+      meatEaten: pop.meatEaten[slot],
+      preyEaten: pop.preyEaten[slot],
+      socialContacts: pop.socialContacts[slot],
+      distanceTravelled: pop.distanceTravelled[slot],
+      imitations: pop.imitations[slot],
+      mutations: pop.mutations[slot],
+      energyGiven: pop.energyGiven[slot],
+      energyReceived: pop.energyReceived[slot],
+      genome: Array.from(pop.genome.subarray(go, go + GENOME_LENGTH)),
+      kinTag: Array.from(
+        pop.kinTag.subarray(pop.kinTagOffset(slot), pop.kinTagOffset(slot) + KIN_TAG_LENGTH),
+      ),
+      memories,
+      emitted: Array.from(pop.emitted.subarray(pop.emittedOffset(slot), pop.emittedOffset(slot) + SIGNAL_CHANNELS)),
+      phenotype: {
+        radius: pop.radius[slot],
+        mass: pop.mass[slot],
+        maxSpeed: pop.maxSpeed[slot],
+        turnRate: pop.turnRate[slot],
+        attackDamage: pop.attackDamage[slot],
+        armor: pop.armor[slot],
+        spikes: pop.spikes[slot],
+        visionRange: pop.visionRange[slot],
+        visionAcuity: pop.visionAcuity[slot],
+        smellRange: pop.smellRange[slot],
+        hearingRange: pop.hearingRange[slot],
+        memorySlots: pop.memorySlots[slot],
+        memoryDecay: pop.memoryDecay[slot],
+        socialLearningRate: pop.socialLearningRate[slot],
+        plantEfficiency: pop.plantEfficiency[slot],
+        meatEfficiency: pop.meatEfficiency[slot],
+        tempPreference: pop.tempPreference[slot],
+        tempTolerance: pop.tempTolerance[slot],
+        waterAffinity: pop.waterAffinity[slot],
+        camouflage: pop.camouflage[slot],
+        fecundity: pop.fecundity[slot],
+        upkeep: pop.upkeep[slot],
+        plasticity: pop.plasticity[slot],
+        mutationRate: pop.mutationRate[slot],
+      },
+      brainInputs: Array.from(this.capturedInputs),
+      brainHidden: Array.from(this.capturedHidden),
+      brainOutputs: Array.from(this.capturedOutputs),
+      brainContext: Array.from(
+        pop.context.subarray(pop.contextOffset(slot), pop.contextOffset(slot) + MAX_CONTEXT),
+      ),
+      hiddenSize: pop.hiddenSize[slot],
+      contextSize: pop.contextSize[slot],
+      w1: Array.from(pop.brain.subarray(bo + W1_OFFSET, bo + W1_OFFSET + W1_SIZE)),
+      w2,
+    };
+  }
+
+  // ------------------------------------------------------------ world events
+
+  triggerWorldEvent(spec: WorldEventSpec): void {
+    const text = this.worldEvents.trigger(spec, this.world, this.cfg, this.rng);
+    this.events.push({ tick: this.tick, kind: EventKind.WorldEvent, text, x: spec.x, y: spec.y });
+  }
+
+  /** Drop `n` fresh random organisms into the world (a "reseed" tool). */
+  inject(n: number): void {
+    const founder = this.species.create(
+      new Float32Array(GENOME_LENGTH).fill(0.5),
+      0,
+      0,
+      this.tick,
+      0,
+      this.rng.next(),
+    );
+    for (let k = 0; k < n; k++) {
+      const slot = this.pop.allocate();
+      if (slot < 0) break;
+      const go = this.pop.genomeOffset(slot);
+      randomGenome(this.pop.genome, go, this.rng);
+      randomizeBrain(this.pop.brain, this.pop.brainOffset(slot), () => this.rng.next());
+      randomKinTags(this.pop.kinTag, this.pop.kinTagOffset(slot), this.rng);
+      this.pop.resetSlot(slot);
+      const { x, y } = this.findLandSpawn();
+      this.pop.x[slot] = x;
+      this.pop.y[slot] = y;
+      this.pop.heading[slot] = this.rng.next() * TWO_PI;
+      this.pop.id[slot] = this.pop.nextId++;
+      this.pop.speciesId[slot] = founder.id;
+      this.pop.generation[slot] = 0;
+      this.pop.birthTick[slot] = this.tick;
+      this.pop.matriline[slot] = this.pop.id[slot];
+      this.pop.memeTag[slot] = this.pop.id[slot];
+      expressInto(this.pheno, this.pop.genome, go);
+      this.pop.applyPhenotype(slot, this.pheno);
+      this.pop.energy[slot] = this.pheno.maxEnergy * 0.8;
+      this.pop.health[slot] = 1;
+      this.addToSpecies(founder.id);
+    }
+    this.events.push({
+      tick: this.tick,
+      kind: EventKind.Milestone,
+      text: `${n} new founders injected into the world`,
+    });
+  }
+
+  // ------------------------------------------------------------- persistence
+
+  /** Everything needed to resume the run exactly where it left off. */
+  serialize(): Record<string, unknown> {
+    const pop = this.pop;
+    const n = pop.count;
+    return {
+      version: 2,
+      tick: this.tick,
+      cfg: this.cfg,
+      rngState: this.rng.saveState(),
+      totalBirths: this.totalBirths,
+      totalDeaths: this.totalDeaths,
+      totalImitations: this.totalImitations,
+      nextId: pop.nextId,
+      count: n,
+      // The free list is state, not scratch: slot reuse order feeds back into
+      // iteration order and therefore into the RNG stream. A fork that rebuilt
+      // it heuristically would drift away from its parent immediately.
+      freeList: pop.exportFreeList(),
+      pop: {
+        alive: pop.alive.slice(0, n),
+        id: pop.id.slice(0, n),
+        speciesId: pop.speciesId.slice(0, n),
+        generation: pop.generation.slice(0, n),
+        parentA: pop.parentA.slice(0, n),
+        parentB: pop.parentB.slice(0, n),
+        birthTick: pop.birthTick.slice(0, n),
+        matriline: pop.matriline.slice(0, n),
+        memeTag: pop.memeTag.slice(0, n),
+        x: pop.x.slice(0, n),
+        y: pop.y.slice(0, n),
+        vx: pop.vx.slice(0, n),
+        vy: pop.vy.slice(0, n),
+        heading: pop.heading.slice(0, n),
+        energy: pop.energy.slice(0, n),
+        health: pop.health.slice(0, n),
+        age: pop.age.slice(0, n),
+        pain: pop.pain.slice(0, n),
+        reward: pop.reward.slice(0, n),
+        attackCooldown: pop.attackCooldown.slice(0, n),
+        reproCooldown: pop.reproCooldown.slice(0, n),
+        children: pop.children.slice(0, n),
+        kills: pop.kills.slice(0, n),
+        plantEaten: pop.plantEaten.slice(0, n),
+        meatEaten: pop.meatEaten.slice(0, n),
+        preyEaten: pop.preyEaten.slice(0, n),
+        socialContacts: pop.socialContacts.slice(0, n),
+        distanceTravelled: pop.distanceTravelled.slice(0, n),
+        imitations: pop.imitations.slice(0, n),
+        mutations: pop.mutations.slice(0, n),
+        energyGiven: pop.energyGiven.slice(0, n),
+        energyReceived: pop.energyReceived.slice(0, n),
+        genome: pop.genome.slice(0, n * GENOME_LENGTH),
+        brain: pop.brain.slice(0, n * BRAIN_STRIDE),
+        plastic: pop.plastic.slice(0, n * PLASTIC_STRIDE),
+        context: pop.context.slice(0, n * MAX_CONTEXT),
+        emitted: pop.emitted.slice(0, n * SIGNAL_CHANNELS),
+        kinTag: pop.kinTag.slice(0, n * KIN_TAG_LENGTH),
+        memX: pop.memX.slice(0, n * MAX_MEMORY),
+        memY: pop.memY.slice(0, n * MAX_MEMORY),
+        memValence: pop.memValence.slice(0, n * MAX_MEMORY),
+        memStrength: pop.memStrength.slice(0, n * MAX_MEMORY),
+      },
+      world: {
+        vegetation: this.world.vegetation.slice(),
+        carrion: this.world.carrion.slice(),
+        signal0: this.world.signal0.slice(),
+        signal1: this.world.signal1.slice(),
+        scorch: this.world.scorch.slice(),
+        fertility: this.world.fertility.slice(),
+      },
+      species: Array.from(this.species.species.values()).map((s) => ({
+        ...s,
+        traits: Array.from(s.traits),
+      })),
+      representatives: this.species.representativeBuffer.slice(),
+      events: this.events.all(),
+      milestones: this.chronicle.getMilestones(),
+    };
+  }
+
+  /**
+   * Rebuild from a saved payload. The instance must have been constructed with
+   * the same config, so the *static* world layers (elevation, moisture,
+   * temperature) regenerate identically from the seed and only the mutable
+   * state has to be stored.
+   */
+  restore(data: Record<string, any>): void {
+    const pop = this.pop;
+    const n = data.count as number;
+
+    this.tick = data.tick;
+    this.rng.loadState(data.rngState as ArrayLike<number>);
+    this.totalBirths = data.totalBirths ?? 0;
+    this.totalDeaths = data.totalDeaths ?? 0;
+    this.totalImitations = data.totalImitations ?? 0;
+
+    const p = data.pop;
+    const copy = (dst: { set(a: ArrayLike<number>, o?: number): void }, src?: ArrayLike<number>) => {
+      if (src) dst.set(src, 0);
+    };
+    pop.alive.fill(0);
+    copy(pop.alive, p.alive);
+    copy(pop.id, p.id);
+    copy(pop.speciesId, p.speciesId);
+    copy(pop.generation, p.generation);
+    copy(pop.parentA, p.parentA);
+    copy(pop.parentB, p.parentB);
+    copy(pop.birthTick, p.birthTick);
+    copy(pop.matriline, p.matriline);
+    copy(pop.memeTag, p.memeTag);
+    copy(pop.x, p.x);
+    copy(pop.y, p.y);
+    copy(pop.vx, p.vx);
+    copy(pop.vy, p.vy);
+    copy(pop.heading, p.heading);
+    copy(pop.energy, p.energy);
+    copy(pop.health, p.health);
+    copy(pop.age, p.age);
+    copy(pop.pain, p.pain);
+    copy(pop.reward, p.reward);
+    copy(pop.attackCooldown, p.attackCooldown);
+    copy(pop.reproCooldown, p.reproCooldown);
+    copy(pop.children, p.children);
+    copy(pop.kills, p.kills);
+    copy(pop.plantEaten, p.plantEaten);
+    copy(pop.meatEaten, p.meatEaten);
+    copy(pop.preyEaten, p.preyEaten);
+    copy(pop.socialContacts, p.socialContacts);
+    copy(pop.distanceTravelled, p.distanceTravelled);
+    copy(pop.imitations, p.imitations);
+    copy(pop.mutations, p.mutations);
+    copy(pop.energyGiven, p.energyGiven);
+    copy(pop.energyReceived, p.energyReceived);
+    copy(pop.genome, p.genome);
+    copy(pop.brain, p.brain);
+    copy(pop.plastic, p.plastic);
+    copy(pop.context, p.context);
+    copy(pop.emitted, p.emitted);
+    copy(pop.kinTag, p.kinTag);
+    copy(pop.memX, p.memX);
+    copy(pop.memY, p.memY);
+    copy(pop.memValence, p.memValence);
+    copy(pop.memStrength, p.memStrength);
+
+    pop.count = n;
+    pop.nextId = data.nextId;
+    pop.livingCount = 0;
+    for (let i = 0; i < n; i++) if (pop.alive[i]) pop.livingCount++;
+
+    // Phenotypes are derived, not stored — re-express them.
+    for (let i = 0; i < n; i++) {
+      if (!pop.alive[i]) continue;
+      expressInto(this.pheno, pop.genome, pop.genomeOffset(i));
+      pop.applyPhenotype(i, this.pheno);
+    }
+    if (data.freeList) {
+      pop.importFreeList(data.freeList as ArrayLike<number>);
+    } else {
+      // Older saves predate free-list persistence; rebuild it so they still
+      // load, accepting that such a save cannot continue bit-identically.
+      pop.importFreeList([]);
+      for (let i = n - 1; i >= 0; i--) {
+        if (!pop.alive[i]) {
+          pop.alive[i] = 1;
+          pop.livingCount++;
+          pop.free(i);
+        }
+      }
+    }
+
+    const w = data.world;
+    this.world.vegetation.set(w.vegetation);
+    this.world.carrion.set(w.carrion);
+    this.world.signal0.set(w.signal0);
+    this.world.signal1.set(w.signal1);
+    this.world.scorch.set(w.scorch);
+    this.world.fertility.set(w.fertility);
+
+    this.speciesPop.clear();
+    this.niches.clear();
+    const records = (data.species as any[]).map((s) => ({
+      ...s,
+      traits: Float32Array.from(s.traits),
+    }));
+    this.species.rehydrate(records, data.representatives as ArrayLike<number>);
+    for (const s of records) this.speciesPop.set(s.id, s.population);
+
+    this.events.clear();
+    for (const e of data.events as any[]) this.events.push(e);
+    this.signals.reset();
+    this.culture.reset();
+    this.chronicle.reset();
+
+    // computeStats() draws from the RNG (diversity sampling, culture pair
+    // sampling). Restoring must leave the stream exactly where the save left
+    // it, or a fork silently diverges from its parent within a few ticks and
+    // every controlled experiment built on forking becomes meaningless.
+    const streamPosition = this.rng.saveState();
+    this.computeStats();
+    this.rng.loadState(streamPosition);
+  }
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+function emptyStats(): Stats {
+  return {
+    tick: 0,
+    population: 0,
+    livingSpecies: 0,
+    totalSpeciesEverCreated: 0,
+    extinctSpecies: 0,
+    births: 0,
+    deaths: 0,
+    birthsPerTick: 0,
+    deathsPerTick: 0,
+    killsPerTick: 0,
+    sharesPerTick: 0,
+    imitationsPerTick: 0,
+    avgEnergy: 0,
+    avgAge: 0,
+    avgLifespan: 0,
+    avgBrainSize: 0,
+    avgSize: 0,
+    avgSpeed: 0,
+    avgVision: 0,
+    avgGeneration: 0,
+    maxGeneration: 0,
+    avgPlasticity: 0,
+    avgMutationRate: 0,
+    avgMemorySlots: 0,
+    avgHearingRange: 0,
+    avgSocialLearning: 0,
+    avgGroupSize: 0,
+    broadcastActivity: 0,
+    transmissionIndex: 0,
+    distinctMemes: 0,
+    posthumousMemes: 0,
+    signalMeaningConfidence: 0,
+    diversity: 0,
+    carnivory: 0,
+    carnivoreFraction: 0,
+    aquaticFraction: 0,
+    totalVegetation: 0,
+    totalCarrion: 0,
+    signalActivity: 0,
+    temperature: 0.5,
+    light: 1,
+    day: 0,
+    year: 0,
+    ticksPerSecond: 0,
+    msPerTick: 0,
+  };
+}

@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+.bench.mjs
+.sweep.mjs
+.exp.mjs
+.serverpid
+*.log
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+tsconfig.*.tsbuildinfo
