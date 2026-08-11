@@ -7,8 +7,12 @@
  * slot assignment affects iteration order, which affects the RNG stream.
  */
 import { GENOME_LENGTH } from '../genome/loci';
-import { BRAIN_STRIDE, PLASTIC_STRIDE, SIGNAL_CHANNELS } from '../brain/brain';
+import { BRAIN_STRIDE, PLASTIC_STRIDE } from '../brain/brain';
 import { MAX_CONTEXT, MAX_MEMORY, type Phenotype } from '../genome/phenotype';
+import { MAX_PROTOTYPES, VOICE_DIM } from '../acoustics/sound';
+import { ECHOIC_STRIDE } from '../acoustics/ear';
+import { PROTO_STRIDE } from '../acoustics/association';
+import { CALL_CONTEXT_DIM } from '../acoustics/context';
 
 /**
  * Neutral kin markers. Inherited Mendelian (each element from one parent), so
@@ -46,8 +50,64 @@ export class Population {
   readonly reward: Float32Array; // decaying recent-gain trace
   readonly attackCooldown: Float32Array;
   readonly reproCooldown: Float32Array;
-  /** What this organism is broadcasting right now, per channel. */
-  readonly emitted: Float32Array; // capacity * SIGNAL_CHANNELS
+
+  // ---- voice: the sound physically in the air around this organism ----
+  /** Instantaneous acoustic frame — what is in the air during this tick. */
+  readonly voice: Float32Array; // capacity * VOICE_DIM
+  /**
+   * Where this tick's production is written. Listeners read `voice` and
+   * emitters write `voiceNext`, and the two are swapped once the whole
+   * population has stepped. Without the split, an organism in slot 900 would
+   * hear slot 100's brand-new call while slot 100 heard slot 900's call from
+   * last tick, and the tick would stop being a simultaneous update.
+   */
+  readonly voiceNext: Float32Array;
+  /** Running accumulation of the vocalisation currently in progress. */
+  readonly callSum: Float32Array; // capacity * VOICE_DIM
+  readonly callTicks: Float32Array;
+  readonly callStartPitch: Float32Array;
+  readonly callStartTick: Float32Array;
+  readonly lastCallTick: Float32Array;
+  /** Situation the emitter was in when it opened its mouth. Telemetry only. */
+  readonly callContext: Float32Array; // capacity * CALL_CONTEXT_DIM
+
+  // ---- ear: the sound currently being attended to ----
+  /** Slot of the source being attended to, plus one. Zero means nothing. */
+  readonly attendSource: Uint32Array;
+  readonly attendSum: Float32Array; // capacity * VOICE_DIM
+  readonly attendTicks: Float32Array;
+  readonly attendStartPitch: Float32Array;
+  readonly attendSrcX: Float32Array;
+  readonly attendSrcY: Float32Array;
+  readonly lastHeardTick: Float32Array;
+  /** What experience says about the most recently finished sound heard. */
+  readonly heardValence: Float32Array;
+  readonly heardFamiliarity: Float32Array;
+
+  // ---- echoic memory: the last few finished sounds ----
+  readonly echoic: Float32Array; // capacity * ECHOIC_STRIDE
+  readonly echoHead: Uint8Array;
+
+  // ---- auditory associative memory (learned in life, never inherited) ----
+  readonly soundProto: Float32Array; // capacity * PROTO_STRIDE
+  readonly soundValence: Float32Array; // capacity * MAX_PROTOTYPES
+  readonly soundStrength: Float32Array;
+  readonly soundTrace: Float32Array;
+
+  /**
+   * Observer bookkeeping. The simulation never reads these back into
+   * behaviour; they exist so an outside analyst can attribute a listener's
+   * actions to the sound that preceded them. They live here rather than in the
+   * analyser so that a forked world carries them and stays reproducible.
+   */
+  readonly heardCluster: Int16Array;
+  readonly heardClusterTicks: Uint8Array;
+  readonly heardDistance: Float32Array;
+  readonly heardSrcX: Float32Array;
+  readonly heardSrcY: Float32Array;
+  /** Whether the last sound heard came from outside the ecosystem. */
+  readonly heardExternal: Uint8Array;
+  readonly lastEmittedCluster: Int16Array;
 
   // ---- episodic place memory ----
   readonly memX: Float32Array; // capacity * MAX_MEMORY
@@ -125,6 +185,20 @@ export class Population {
   readonly memoryDecay: Float32Array;
   readonly hearingRange: Float32Array;
   readonly socialLearningRate: Float32Array;
+  readonly vocalLow: Float32Array;
+  readonly vocalHigh: Float32Array;
+  readonly vocalPower: Float32Array;
+  readonly vocalSlew: Float32Array;
+  readonly vocalAgility: Float32Array;
+  readonly timbreCenter: Float32Array;
+  readonly timbreSpan: Float32Array;
+  readonly noiseCenter: Float32Array;
+  readonly noiseSpan: Float32Array;
+  readonly auditoryLow: Float32Array;
+  readonly auditoryHigh: Float32Array;
+  readonly auditoryResolution: Float32Array;
+  readonly echoicDepth: Uint8Array;
+  readonly soundPrototypes: Uint8Array;
 
   // ---- slot management ----
   private freeList: Int32Array;
@@ -160,7 +234,40 @@ export class Population {
     this.reward = f();
     this.attackCooldown = f();
     this.reproCooldown = f();
-    this.emitted = new Float32Array(capacity * SIGNAL_CHANNELS);
+    this.voice = new Float32Array(capacity * VOICE_DIM);
+    this.voiceNext = new Float32Array(capacity * VOICE_DIM);
+    this.callSum = new Float32Array(capacity * VOICE_DIM);
+    this.callTicks = f();
+    this.callStartPitch = f();
+    this.callStartTick = f();
+    this.lastCallTick = f();
+    this.callContext = new Float32Array(capacity * CALL_CONTEXT_DIM);
+
+    this.attendSource = u32();
+    this.attendSum = new Float32Array(capacity * VOICE_DIM);
+    this.attendTicks = f();
+    this.attendStartPitch = f();
+    this.attendSrcX = f();
+    this.attendSrcY = f();
+    this.lastHeardTick = f();
+    this.heardValence = f();
+    this.heardFamiliarity = f();
+
+    this.echoic = new Float32Array(capacity * ECHOIC_STRIDE);
+    this.echoHead = new Uint8Array(capacity);
+
+    this.soundProto = new Float32Array(capacity * PROTO_STRIDE);
+    this.soundValence = new Float32Array(capacity * MAX_PROTOTYPES);
+    this.soundStrength = new Float32Array(capacity * MAX_PROTOTYPES);
+    this.soundTrace = new Float32Array(capacity * MAX_PROTOTYPES);
+
+    this.heardCluster = new Int16Array(capacity);
+    this.heardClusterTicks = new Uint8Array(capacity);
+    this.heardDistance = f();
+    this.heardSrcX = f();
+    this.heardSrcY = f();
+    this.heardExternal = new Uint8Array(capacity);
+    this.lastEmittedCluster = new Int16Array(capacity);
 
     this.memX = new Float32Array(capacity * MAX_MEMORY);
     this.memY = new Float32Array(capacity * MAX_MEMORY);
@@ -223,6 +330,20 @@ export class Population {
     this.memoryDecay = f();
     this.hearingRange = f();
     this.socialLearningRate = f();
+    this.vocalLow = f();
+    this.vocalHigh = f();
+    this.vocalPower = f();
+    this.vocalSlew = f();
+    this.vocalAgility = f();
+    this.timbreCenter = f();
+    this.timbreSpan = f();
+    this.noiseCenter = f();
+    this.noiseSpan = f();
+    this.auditoryLow = f();
+    this.auditoryHigh = f();
+    this.auditoryResolution = f();
+    this.echoicDepth = new Uint8Array(capacity);
+    this.soundPrototypes = new Uint8Array(capacity);
 
     this.freeList = new Int32Array(capacity);
   }
@@ -275,8 +396,40 @@ export class Population {
     this.reward[slot] = 0;
     this.attackCooldown[slot] = 0;
     this.reproCooldown[slot] = 0;
-    const eo = slot * SIGNAL_CHANNELS;
-    this.emitted.fill(0, eo, eo + SIGNAL_CHANNELS);
+    const vo = slot * VOICE_DIM;
+    this.voice.fill(0, vo, vo + VOICE_DIM);
+    this.voiceNext.fill(0, vo, vo + VOICE_DIM);
+    this.callSum.fill(0, vo, vo + VOICE_DIM);
+    this.attendSum.fill(0, vo, vo + VOICE_DIM);
+    this.callTicks[slot] = 0;
+    this.callStartPitch[slot] = 0;
+    this.callStartTick[slot] = 0;
+    this.lastCallTick[slot] = 0;
+    this.callContext.fill(0, slot * CALL_CONTEXT_DIM, (slot + 1) * CALL_CONTEXT_DIM);
+    this.attendSource[slot] = 0;
+    this.attendTicks[slot] = 0;
+    this.attendStartPitch[slot] = 0;
+    this.attendSrcX[slot] = 0;
+    this.attendSrcY[slot] = 0;
+    this.lastHeardTick[slot] = 0;
+    this.heardValence[slot] = 0;
+    this.heardFamiliarity[slot] = 0;
+    // Echoic and associative memory are soma. A newborn starts out knowing
+    // nothing about what any sound has ever preceded, and has to find out.
+    this.echoic.fill(0, slot * ECHOIC_STRIDE, (slot + 1) * ECHOIC_STRIDE);
+    this.echoHead[slot] = 0;
+    this.soundProto.fill(0, slot * PROTO_STRIDE, (slot + 1) * PROTO_STRIDE);
+    const so = slot * MAX_PROTOTYPES;
+    this.soundValence.fill(0, so, so + MAX_PROTOTYPES);
+    this.soundStrength.fill(0, so, so + MAX_PROTOTYPES);
+    this.soundTrace.fill(0, so, so + MAX_PROTOTYPES);
+    this.heardCluster[slot] = -1;
+    this.heardClusterTicks[slot] = 0;
+    this.heardDistance[slot] = 0;
+    this.heardSrcX[slot] = 0;
+    this.heardSrcY[slot] = 0;
+    this.heardExternal[slot] = 0;
+    this.lastEmittedCluster[slot] = -1;
     const mo = slot * MAX_MEMORY;
     this.memStrength.fill(0, mo, mo + MAX_MEMORY);
     this.imitations[slot] = 0;
@@ -334,13 +487,39 @@ export class Population {
     this.memoryDecay[slot] = p.memoryDecay;
     this.hearingRange[slot] = p.hearingRange;
     this.socialLearningRate[slot] = p.socialLearningRate;
+    this.vocalLow[slot] = p.vocalLow;
+    this.vocalHigh[slot] = p.vocalHigh;
+    this.vocalPower[slot] = p.vocalPower;
+    this.vocalSlew[slot] = p.vocalSlew;
+    this.vocalAgility[slot] = p.vocalAgility;
+    this.timbreCenter[slot] = p.timbreCenter;
+    this.timbreSpan[slot] = p.timbreSpan;
+    this.noiseCenter[slot] = p.noiseCenter;
+    this.noiseSpan[slot] = p.noiseSpan;
+    this.auditoryLow[slot] = p.auditoryLow;
+    this.auditoryHigh[slot] = p.auditoryHigh;
+    this.auditoryResolution[slot] = p.auditoryResolution;
+    this.echoicDepth[slot] = p.echoicDepth;
+    this.soundPrototypes[slot] = p.soundPrototypes;
   }
 
   memoryOffset(slot: number): number {
     return slot * MAX_MEMORY;
   }
-  emittedOffset(slot: number): number {
-    return slot * SIGNAL_CHANNELS;
+  voiceOffset(slot: number): number {
+    return slot * VOICE_DIM;
+  }
+  echoicOffset(slot: number): number {
+    return slot * ECHOIC_STRIDE;
+  }
+  protoOffset(slot: number): number {
+    return slot * PROTO_STRIDE;
+  }
+  soundSlotOffset(slot: number): number {
+    return slot * MAX_PROTOTYPES;
+  }
+  callContextOffset(slot: number): number {
+    return slot * CALL_CONTEXT_DIM;
   }
   kinTagOffset(slot: number): number {
     return slot * KIN_TAG_LENGTH;

@@ -27,6 +27,12 @@ let running = false;
 let ticksPerFrame = 1;
 let unlimited = false;
 let overlay: OverlayMode = 'terrain';
+/**
+ * Where the user is listening from. Only voices near this point are turned
+ * into real audio: the simulation carries thousands of sounds as feature
+ * vectors and synthesises at most a dozen of them.
+ */
+let listener = { x: 0, y: 0, radius: 700, enabled: false };
 
 let snapshotPool: ArrayBuffer[] = [];
 let terrainPool: ArrayBuffer[] = [];
@@ -80,6 +86,10 @@ function emitFrame(includeTerrain: boolean): void {
     transfer.push(terrain);
   }
 
+  const voices = listener.enabled
+    ? sim.audibleVoices(listener.x, listener.y, listener.radius, 12)
+    : undefined;
+
   const revision = sim.events.revision;
   const events = revision !== lastEventRevision ? sim.events.recent(120) : undefined;
   lastEventRevision = revision;
@@ -95,6 +105,7 @@ function emitFrame(includeTerrain: boolean): void {
       events,
       eventRevision: revision,
       selectedId: sim.selectedId,
+      voices,
     },
     transfer,
   );
@@ -197,6 +208,12 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
     case 'inject':
       sim?.inject(msg.count);
       break;
+    case 'listener':
+      listener = { x: msg.x, y: msg.y, radius: msg.radius, enabled: msg.enabled };
+      break;
+    case 'externalSound':
+      sim?.emitExternalSound(msg.x, msg.y, msg.frame, msg.ticks);
+      break;
     case 'requestDetail': {
       if (!sim) break;
       post({
@@ -206,8 +223,8 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
         extinct: sim.extinctSummaries(150),
         activeEvents: sim.worldEvents.activeEvents(),
         culture: sim.getCulture(),
-        signals: sim.signals.meanings(),
-        signalSamples: sim.signals.sampleCount,
+        acoustics: sim.acoustics.report(),
+        firstContact: sim.firstContact(),
         milestones: sim.chronicle.getMilestones(),
         anomalies: sim.chronicle.getAnomalies(30),
         mutationTally: Array.from(sim.mutationTally),
@@ -236,10 +253,20 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
       break;
     case 'load': {
       const payload = msg.payload as { cfg: Partial<import('../sim/core/config').SimConfig> };
-      snapshotPool = [];
-      terrainPool = [];
-      sim = new Simulation(payload.cfg);
-      sim.restore(payload as Record<string, unknown>);
+      const previous = sim;
+      try {
+        snapshotPool = [];
+        terrainPool = [];
+        sim = new Simulation(payload.cfg);
+        sim.restore(payload as Record<string, unknown>);
+      } catch (err) {
+        // A save from an incompatible build cannot be resumed. Put the running
+        // world back rather than leaving the worker holding a half-built one,
+        // and tell the user why instead of failing silently.
+        sim = previous;
+        post({ type: 'loaded', error: err instanceof Error ? err.message : 'Could not load that world.' });
+        break;
+      }
       lastEventRevision = -1;
       post({ type: 'ready', worldSize: sim.world.size, gridSize: sim.world.grid });
       post({ type: 'loaded' });

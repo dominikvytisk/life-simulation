@@ -1,87 +1,44 @@
 import { useStore } from '../app/store';
-import { Bar, Section, Stat, fmt } from './ui';
-import { MEANING_THRESHOLD } from '../sim/analysis/signals';
+import { Section, Stat, fmt } from './ui';
 
 /**
- * What the signal channels have come to mean — measured, not defined.
+ * Culture: behaviour that spreads between organisms rather than down the
+ * germline, and how far it travels.
  *
- * Two independent correlations per channel: what an emitter is experiencing
- * when it broadcasts, and what listeners do when they hear it. A channel that
- * correlates with nothing is shown as carrying no detectable meaning, which is
- * the normal state of affairs and is stated plainly rather than dressed up.
+ * The acoustic side of communication lives in the Voice panel. What is here is
+ * the other half — whether learned behaviour is being copied at all, and
+ * whether any of it outlives the individual that worked it out. The two are
+ * measured completely independently, so a world can have one without the other
+ * and frequently does.
  */
 export function SignalsPanel() {
-  const signals = useStore((s) => s.signals);
-  const samples = useStore((s) => s.signalSamples);
   const culture = useStore((s) => s.culture);
   const stats = useStore((s) => s.stats);
-
-  const meaningful = signals.filter((s) => s.confidence >= MEANING_THRESHOLD);
+  const acoustics = useStore((s) => s.acoustics);
 
   return (
     <div className="h-full overflow-y-auto">
-      <Section title="Communication">
+      <Section title="Transmission at a glance">
         <div className="grid grid-cols-3 gap-3">
-          <Stat label="broadcast" value={(stats?.broadcastActivity ?? 0).toFixed(3)} tone="accent" />
-          <Stat label="channels w/ signal" value={`${meaningful.length}/${signals.length || 8}`} />
-          <Stat label="samples" value={fmt(samples)} />
+          <Stat
+            label="imitations/tick"
+            value={(stats?.imitationsPerTick ?? 0).toFixed(3)}
+            tone="accent"
+          />
+          <Stat label="calls/tick" value={(stats?.callsPerTick ?? 0).toFixed(3)} />
+          <Stat
+            label="call shapes"
+            value={fmt(acoustics?.clusters.length ?? 0)}
+            title="Recurring acoustic shapes found by clustering. See the Voice panel."
+          />
         </div>
         <p className="mt-2 text-[9px] leading-snug text-ink-dim">
-          Eight channels exist. None has an assigned meaning. These numbers are Pearson correlations
-          measured over sampled organisms — the emitter column is what was happening when the
-          channel was used, the listener column is what organisms hearing it did next. Correlation
-          only; nothing here demonstrates that the signal <em>caused</em> the response.
+          Two independent routes for something to spread without being inherited: copying a
+          neighbour's learned weights outright, and hearing a sound often enough to form an
+          association with it. Neither is a culture system — they are a copy operation and an ear,
+          and whether anything cultural comes of them is what the numbers below try to establish.
         </p>
       </Section>
-
-      {samples < 400 ? (
-        <Section title="Channels">
-          <p className="text-[10px] text-ink-dim">
-            Not enough observations yet ({fmt(samples)} of 400 needed). Nothing will be reported
-            until the sample is large enough to mean anything.
-          </p>
-        </Section>
-      ) : (
-        <Section title="Channels">
-          <div className="space-y-2">
-            {signals.map((s) => {
-              const silent = s.confidence < MEANING_THRESHOLD;
-              return (
-                <div
-                  key={s.channel}
-                  className={`border p-2 ${silent ? 'border-edge/50 bg-panel' : 'border-accent/40 bg-panel-2'}`}
-                >
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className={`text-[11px] ${silent ? 'text-ink-dim' : 'text-accent'}`}>
-                      channel {s.channel}
-                    </span>
-                    <span className="ml-auto text-[9px] text-ink-dim">
-                      usage {s.usage.toFixed(3)}
-                    </span>
-                  </div>
-                  <div className="mb-1.5">
-                    <Bar
-                      value={s.confidence}
-                      color={silent ? '#2a3446' : 'var(--color-accent)'}
-                      height={3}
-                    />
-                  </div>
-                  {silent ? (
-                    <p className="text-[9px] text-ink-dim/70">
-                      no correlation above r={MEANING_THRESHOLD} — carries no detectable meaning
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      <CorrelationList title="emitted when" items={s.emitterContext} />
-                      <CorrelationList title="listeners then" items={s.listenerResponse} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Section>
-      )}
 
       <Section title="Cultural transmission">
         {!culture || culture.samples === 0 ? (
@@ -145,36 +102,6 @@ export function SignalsPanel() {
             anywhere in the code.
           </p>
         </Section>
-      )}
-    </div>
-  );
-}
-
-function CorrelationList({
-  title,
-  items,
-}: {
-  title: string;
-  items: { label: string; r: number }[];
-}) {
-  return (
-    <div>
-      <div className="label-xs mb-0.5">{title}</div>
-      {items.length === 0 ? (
-        <div className="text-[9px] text-ink-dim/60">—</div>
-      ) : (
-        items.map((it) => (
-          <div key={it.label} className="flex justify-between text-[9px]">
-            <span className="truncate text-ink-dim">{it.label}</span>
-            <span
-              className="tabular-nums"
-              style={{ color: it.r > 0 ? 'var(--color-life)' : 'var(--color-danger)' }}
-            >
-              {it.r > 0 ? '+' : ''}
-              {it.r.toFixed(2)}
-            </span>
-          </div>
-        ))
       )}
     </div>
   );

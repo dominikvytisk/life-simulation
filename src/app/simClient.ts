@@ -15,11 +15,13 @@ import type { WorldEventSpec } from '../sim/events/worldEvents';
 import type { FromWorker, ToWorker } from '../workers/protocol';
 import type { SeriesKey } from '../analytics/history';
 import type {
+  AcousticReport,
   AnomalyReport,
+  AudibleVoice,
   CultureReport,
+  FirstContactReport,
   Milestone,
   OrganismInspection,
-  SignalMeaning,
   SimEventDTO,
   SpeciesSummary,
   Stats,
@@ -31,8 +33,8 @@ export interface DetailPayload {
   extinct: SpeciesSummary[];
   activeEvents: { type: string; ticksLeft: number; progress: number }[];
   culture: CultureReport;
-  signals: SignalMeaning[];
-  signalSamples: number;
+  acoustics: AcousticReport;
+  firstContact: FirstContactReport;
   milestones: Milestone[];
   anomalies: AnomalyReport[];
   mutationTally: number[];
@@ -50,8 +52,10 @@ type Listeners = {
   onForked?: (payload: unknown) => void;
   onHistory?: (h: HistoryPayload) => void;
   onPicked?: (id: number) => void;
+  onVoices?: (voices: AudibleVoice[]) => void;
   onReady?: (worldSize: number, gridSize: number) => void;
   onSaved?: (payload: unknown) => void;
+  onLoaded?: (error?: string) => void;
 };
 
 export class SimClient {
@@ -60,6 +64,12 @@ export class SimClient {
 
   /** Latest organism snapshot; the renderer reads this directly. */
   snapshot: Float32Array | null = null;
+  /**
+   * The handful of voices near the listening point. Read directly by the
+   * synthesiser and the spectrogram at frame rate; never routed through React,
+   * for the same reason the snapshot is not.
+   */
+  latestVoices: AudibleVoice[] = [];
   count = 0;
   worldSize = 4096;
   gridSize = 256;
@@ -123,6 +133,14 @@ export class SimClient {
           this.listeners.onStats?.(msg.stats);
         }
         if (msg.events) this.listeners.onEvents?.(msg.events);
+        // Voices bypass the stats throttle: audio has to track the world at
+        // frame rate or it stops sounding like the thing on screen.
+        if (msg.voices) {
+          this.latestVoices = msg.voices;
+          this.listeners.onVoices?.(msg.voices);
+        } else if (this.latestVoices.length > 0 && !this.listenerEnabled) {
+          this.latestVoices = [];
+        }
         break;
       }
 
@@ -133,8 +151,8 @@ export class SimClient {
           extinct: msg.extinct,
           activeEvents: msg.activeEvents,
           culture: msg.culture,
-          signals: msg.signals,
-          signalSamples: msg.signalSamples,
+          acoustics: msg.acoustics,
+          firstContact: msg.firstContact,
           milestones: msg.milestones,
           anomalies: msg.anomalies,
           mutationTally: msg.mutationTally,
@@ -153,6 +171,7 @@ export class SimClient {
         this.listeners.onSaved?.(msg.payload);
         break;
       case 'loaded':
+        this.listeners.onLoaded?.(msg.error);
         break;
     }
   }
@@ -206,6 +225,48 @@ export class SimClient {
   }
   inject(count: number): void {
     this.send({ type: 'inject', count });
+  }
+  /** Where the listening point currently is, in world units. */
+  get listenerX(): number {
+    return this.listenerPos.x;
+  }
+  get listenerY(): number {
+    return this.listenerPos.y;
+  }
+
+  private listenerEnabled = false;
+  private listenerSentAt = 0;
+  private listenerPos = { x: 0, y: 0, radius: 0 };
+
+  /** Turn voice reporting on or off. Off by default: no audio without a click. */
+  setListenerEnabled(enabled: boolean): void {
+    if (this.listenerEnabled === enabled) return;
+    this.listenerEnabled = enabled;
+    if (!enabled) this.latestVoices = [];
+    this.send({
+      type: 'listener',
+      x: this.listenerPos.x,
+      y: this.listenerPos.y,
+      radius: this.listenerPos.radius || 700,
+      enabled,
+    });
+  }
+
+  /**
+   * Follow the camera. Called every rendered frame, so it throttles and skips
+   * entirely while nothing is listening.
+   */
+  trackListener(x: number, y: number, radius: number): void {
+    this.listenerPos = { x, y, radius };
+    if (!this.listenerEnabled) return;
+    const now = performance.now();
+    if (now - this.listenerSentAt < 120) return;
+    this.listenerSentAt = now;
+    this.send({ type: 'listener', x, y, radius, enabled: true });
+  }
+  /** Put a sound into the world. `frame` is raw acoustics, never a symbol. */
+  externalSound(x: number, y: number, frame: number[], ticks = 3): void {
+    this.send({ type: 'externalSound', x, y, frame, ticks });
   }
   requestDetail(): void {
     this.send({ type: 'requestDetail' });

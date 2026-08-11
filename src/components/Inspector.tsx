@@ -3,6 +3,7 @@ import { useStore } from '../app/store';
 import { GENOME_LENGTH, LOCUS_LABELS, LOCUS_NAMES, Locus } from '../sim/genome/loci';
 import { Bar, Button, Section, Stat, TraitRow, fmt, hueColor } from './ui';
 import { BrainView } from './BrainView';
+import { pitchToHz } from '../sim/acoustics/sound';
 
 /**
  * Everything knowable about one organism. Genome, expressed body, live brain,
@@ -198,23 +199,117 @@ export function Inspector() {
         )}
       </Section>
 
-      <Section title="Broadcasting">
-        <div className="flex gap-1">
-          {data.emitted.map((v, i) => (
-            <div key={i} className="flex-1 text-center">
-              <div className="h-8 w-full bg-panel-2">
-                <div
-                  className="w-full bg-accent-2"
-                  style={{ height: `${Math.min(100, v * 100)}%`, marginTop: `${100 - Math.min(100, v * 100)}%` }}
-                />
-              </div>
-              <span className="text-[8px] text-ink-dim">{i}</span>
-            </div>
-          ))}
+      <Section title="Voice">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat
+            label="state"
+            value={data.calling ? `calling ${data.callTicks.toFixed(0)}t` : 'silent'}
+            tone={data.calling ? 'accent' : 'default'}
+          />
+          <Stat
+            label="pitch"
+            value={data.calling ? `${pitchToHz(data.voice[0]).toFixed(0)} Hz` : '—'}
+          />
+          <Stat label="loudness" value={data.voice[1].toFixed(2)} />
+        </div>
+        <div className="mt-2 space-y-0.5">
+          <TraitRow
+            label="Voice band"
+            value={data.phenotype.vocalHigh - data.phenotype.vocalLow}
+            display={`${pitchToHz(data.phenotype.vocalLow).toFixed(0)}–${pitchToHz(data.phenotype.vocalHigh).toFixed(0)} Hz`}
+          />
+          <TraitRow
+            label="Hearing band"
+            value={data.phenotype.auditoryHigh - data.phenotype.auditoryLow}
+            display={`${pitchToHz(data.phenotype.auditoryLow).toFixed(0)}–${pitchToHz(data.phenotype.auditoryHigh).toFixed(0)} Hz`}
+          />
+          <TraitRow label="Vocal power" value={data.phenotype.vocalPower} />
+          <TraitRow label="Vocal agility" value={data.phenotype.vocalAgility} />
+          <TraitRow label="Freq. resolution" value={data.phenotype.auditoryResolution} />
+          <TraitRow
+            label="Echoic depth"
+            value={data.phenotype.echoicDepth / 4}
+            display={data.phenotype.echoicDepth.toFixed(0)}
+          />
         </div>
         <p className="mt-1 text-[9px] leading-snug text-ink-dim">
-          Eight channels with no assigned meaning. Whether any of them correlates with anything is
-          measured in the Signals panel.
+          An organ, not a vocabulary. The bands are what this body can physically produce and
+          receive; two organisms whose bands do not overlap cannot hear each other at all, however
+          much either one shouts.
+        </p>
+      </Section>
+
+      <Section title="What it has heard">
+        {data.echoic.length === 0 ? (
+          <p className="text-[10px] text-ink-dim">
+            {data.ticksSinceHeard < 0
+              ? 'This organism has never heard a sound.'
+              : 'Nothing in the echoic buffer.'}
+          </p>
+        ) : (
+          <div className="space-y-0.5">
+            {data.echoic.map((e, i) => (
+              <div
+                key={i}
+                className="grid grid-cols-[26px_1fr_54px_46px] items-center gap-2 text-[9px]"
+              >
+                <span className="text-ink-dim">t-{i}</span>
+                <Bar value={e.pitch} color="var(--color-accent-2)" height={4} />
+                <span className="tabular-nums text-ink-dim">
+                  {pitchToHz(e.pitch).toFixed(0)} Hz
+                </span>
+                <span className="text-right tabular-nums text-ink-dim/70">
+                  gap {e.gap.toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="What it thinks sounds mean">
+        {data.soundMemory.length === 0 ? (
+          <p className="text-[10px] text-ink-dim">
+            {data.phenotype.soundPrototypes === 0
+              ? 'This genome pays for no auditory memory. Sounds arrive and are gone.'
+              : 'No sound has recurred often enough to be held yet.'}
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {data.soundMemory.map((m, i) => (
+              <div key={i} className="border border-edge/60 bg-panel-2 px-2 py-1">
+                <div className="flex items-center gap-2 text-[9px]">
+                  <span className="text-ink">{pitchToHz(m.pitch).toFixed(0)} Hz</span>
+                  <span className="text-ink-dim">
+                    {m.noisiness > 0.6 ? 'noisy' : m.noisiness < 0.3 ? 'tonal' : 'mixed'}
+                  </span>
+                  <span
+                    className="ml-auto tabular-nums"
+                    style={{
+                      color:
+                        m.valence > 0.05
+                          ? 'var(--color-life)'
+                          : m.valence < -0.05
+                            ? 'var(--color-danger)'
+                            : 'var(--color-ink-dim)',
+                    }}
+                    title="What tended to happen to this organism after it heard this sound. Learned from its own reward stream and shared with nobody."
+                  >
+                    {m.valence > 0 ? '+' : ''}
+                    {m.valence.toFixed(3)}
+                  </span>
+                </div>
+                <div className="mt-0.5">
+                  <Bar value={m.strength} height={2} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-1 text-[9px] leading-snug text-ink-dim">
+          These are this individual's own expectations, worked out from what happened after it
+          heard each sound. Another organism that heard the same call in a worse moment holds the
+          opposite value for it, permanently. Nothing here is inherited and nothing here is shared.
         </p>
       </Section>
 

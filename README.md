@@ -5,12 +5,12 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&labelColor=0a0e16)](tsconfig.app.json)
 
 **An artificial life simulation that runs in your browser.** Thousands of organisms evolve genomes,
-bodies, senses, recurrent neural networks, episodic memory and their own communication signals — and
-none of their behaviour is scripted.
+bodies, senses, recurrent neural networks, episodic memory, a vocal apparatus and an ear — and none
+of their behaviour is scripted. No sound in this world has a meaning attached to it by anyone.
 
 [**▶ Open the live simulation**](https://dominikvytisk.github.io/life-simulation/) · [How it works](#how-it-works) · [What emerges](#emergent-behaviour-to-watch-for) · [Measured results](#measured-behaviour)
 
-![LIFE artificial life simulation running in a browser. The centre panel shows a procedurally generated island covered in thousands of evolved organisms; the right-hand inspector shows a single organism's vitals, life history, learning and culture statistics, episodic memory slots, eight broadcast channels and its live neural network with activations.](preview.png)
+![LIFE artificial life simulation running in a browser. The centre panel shows a procedurally generated island covered in thousands of evolved organisms; the right-hand inspector shows a single organism's vitals, life history, learning and culture statistics, episodic memory slots, its vocal and auditory range, and its live neural network with activations.](preview.png)
 
 Foraging, predation, scavenging, grouping and signalling are not features in this codebase. They are
 outcomes. The simulation supplies an energy economy, a sensory model, a mutable genome and a mutable
@@ -27,16 +27,20 @@ survives, survives.
 
 ## What is in it
 
-- **Evolvable genomes** — 32 loci controlling body plan, metabolism, senses, brain width, memory and
-  the mutation rate itself
-- **A neural network per organism** — recurrent, 48 sensory inputs, 19 action outputs, with evolved
+- **Evolvable genomes** — 41 loci controlling body plan, metabolism, senses, brain width, memory,
+  vocal and auditory anatomy, and the mutation rate itself
+- **A neural network per organism** — recurrent, 71 sensory inputs, 18 action outputs, with evolved
   hidden width and evolved recurrent memory
 - **Lifetime learning** — reward-modulated Hebbian plasticity, kept strictly separate from the
   germline, so nothing learned is ever inherited
 - **Episodic memory** — organisms remember where good and bad things happened to them, at a real
   upkeep cost that many lineages decline to pay
-- **Emergent communication** — eight broadcast channels with no assigned meaning, whose semantics are
-  *measured* from correlations rather than defined
+- **Emergent acoustic communication** — a genetically determined vocal tract and ear, sound that
+  propagates through real physics, and an observer that measures what the resulting calls correlate
+  with rather than deciding what they mean
+- **Human interaction** — speak into a microphone and organisms hear the acoustic properties of your
+  voice through the same ear they hear each other with. No speech recognition, no keywords, no audio
+  leaving the page
 - **Kin recognition and altruism** — Mendelian kin markers plus a plain energy-transfer action, the
   ingredients kin selection needs
 - **Social learning and culture** — imitation copies learned weights but never genes, adding a third
@@ -106,12 +110,14 @@ the renderer draws from it, and it is handed back on the next frame. Steady-stat
 | `src/sim/evolution` | Crossover, mutation, kin-tag inheritance, founder genomes |
 | `src/sim/organisms` | The SoA population store |
 | `src/sim/species` | Speciation, phylogeny, extinction records |
-| `src/sim/analysis` | Niche inference, signal semantics, culture, chronicle |
+| `src/sim/acoustics` | Sound representation, propagation, ear, auditory associative memory |
+| `src/sim/analysis` | Niche inference, call statistics, culture, chronicle |
 | `src/sim/events` | World events, event log |
 | `src/gpu` | WebGPU + Canvas2D renderers, WGSL shaders |
 | `src/workers` | Simulation worker, headless experiment worker, protocol |
 | `src/components` | Panels, charts, inspector, brain view |
 | `src/experiments` | Preset worlds, hypotheses, experiment comparison |
+| `src/audio` | Procedural Web Audio synthesis, microphone feature extraction |
 | `src/analytics` | Time-series ring buffers |
 | `src/persistence` | IndexedDB save/load, file export/import |
 
@@ -121,7 +127,7 @@ the renderer draws from it, and it is handed back on the next frame. Steady-stat
 
 ### Genome
 
-32 loci, each a float in `[0,1]`. The genome is uniform and meaningless on its own — `phenotype.ts`
+41 loci, each a float in `[0,1]`. The genome is uniform and meaningless on its own — `phenotype.ts`
 is the only place that decides what a gene *does*. That keeps mutation, crossover and genetic
 distance generic.
 
@@ -135,12 +141,12 @@ Note what is **not** in the genome: no diet type, no species label, no behaviour
 
 ### Neural network
 
-Per organism: `48 inputs + ≤6 recurrent context → ≤14 hidden (tanh) → 19 outputs + next context`,
+Per organism: `71 inputs + ≤6 recurrent context → ≤14 hidden (tanh) → 18 outputs + next context`,
 stored as a flat slice of one big `Float32Array`.
 
 The outputs are: thrust, turn, eat, attack, mate, rest, sprint, imitate, share, two pheromone
-deposits, and eight broadcast channels. Note what is *not* there — no "flee", no "follow", no
-"defend offspring". Fleeing is thrust in a direction; following is thrust toward a sensed neighbour;
+deposits, and the seven knobs on the vocal apparatus. Note what is *not* there — no "flee", no
+"follow", no "call for help", no "defend offspring". Fleeing is thrust in a direction; following is thrust toward a sensed neighbour;
 provisioning is the share output aimed at something small and closely related. Those are things an
 organism can do, not things it can be told to do.
 
@@ -161,9 +167,12 @@ structural mutation can switch back on.
 Egocentric, normalised, and deliberately raw. Vegetation gradient, elevation gradient, nearest two
 organisms as body-relative vectors, their relative size, genetic similarity (kin recognition), local
 population density, the *mean heading of neighbours*, temperature stress, water depth, light,
-pheromone concentration and its gradient, pain, reward.
+pheromone concentration and its gradient, pain, reward — and, from the ear, the physical properties
+of whatever is currently in the air plus the last few sounds that finished.
 
 Some of those are the exact ingredients a flocking rule would need. No flocking rule is provided.
+Others are the exact ingredients a conversation would need. No conversation system is provided
+either.
 
 ### Energy economy
 
@@ -197,21 +206,56 @@ remembering costs more than it returns.
 
 Two modalities, deliberately different in kind.
 
-**Pheromone fields** diffuse and decay across the world — they persist after the organism leaves,
+**Pheromone fields** diffuse and decay across the world. They persist after the organism leaves,
 which is what makes trails and territory marks possible at all.
 
-**Eight broadcast channels** are heard directly by nearby organisms within an evolved hearing range,
-weighted by distance. An organism can be heard without being seen, which is what makes an audible
-signal worth something different from just looking.
+**Sound** is the second, and it is modelled as a physical phenomenon rather than as a set of
+channels. The rule the whole subsystem is built around:
 
-**No meaning is assigned to any channel.** Instead, `analysis/signals.ts` measures two independent
-Pearson correlations per channel over sampled organisms: what an emitter is experiencing when it
-broadcasts, and what listeners do when they hear it. The Signals panel reports those correlations
-with their r values, and reports "no detectable meaning" when there isn't any — which is the usual
-answer for most channels.
+> The developer does not define what any sound means. If meaning appears, it has to come out of the
+> environment, the ear, the brain, learning, social contact, reproduction and selection.
 
-Broadcasting costs energy, which is what makes an informative channel possible: if screaming were
-free, everyone would scream constantly and no channel could correlate with anything.
+There is no `signal = FOOD` anywhere in this codebase, and no lookup table that could be one.
+
+**The vocal apparatus** (`acoustics/sound.ts`) is an organ grown from the genome, with limits and no
+intentions: a producible frequency band from two independently mutable edge genes, a power ceiling,
+an agility that caps how fast pitch can move between ticks, and a tract character that biases how
+tonal or how rough the voice is. Different lineages can physically reach different corners of
+acoustic space, and mutation moves those corners around.
+
+Seven brain outputs drive it — a gate plus pitch, loudness, noisiness, timbre, sweep and tremolo.
+None of them means anything. How long the gate stays open *is* the duration of the call; opening and
+closing it in a pattern *is* a sequence. No syntax is defined.
+
+**Propagation** is real physics. Sound spreads geometrically, is absorbed exponentially with
+distance, and — the consequential part — **is absorbed faster at high frequencies**. A low call
+carries across the map and a high one stays local, so range and privacy are opposed and neither is
+free. Undergrowth and water absorb more. Weather makes the world louder.
+
+**The ear** is also an organ: a passband with its own two edge genes, a frequency resolution, and a
+depth of echoic memory. Two populations whose bands stop overlapping cannot hear each other however
+loud either one shouts. Masking is frequency-selective, as in a real ear, so a chorus sitting away
+in pitch interferes far less than one sitting on top of you — which is the only reason it can ever
+pay to call in a register nobody else uses.
+
+Perception is degraded honestly. What arrives at the ear is jittered in proportion to how far the
+signal sits above the racket and how good that particular ear is, so **two identical sounds are
+never perceived identically**. An organism cannot hear well while it is shouting.
+
+The brain receives pitch, loudness, direction, spread, noisiness, timbre, sweep, tremolo, onset,
+duration, the ambient noise floor, how long it has been quiet, and the last few finished sounds with
+the gaps between them. Not one of these is a symbol.
+
+**Learned meaning, if any, is private.** Each organism carries a small vector-quantiser of the
+sounds it keeps hearing, each with a value learned from its own reward stream via a decaying
+eligibility trace — so "heard it, went over, found food" is learnable while most coincidences
+average out. Two organisms that heard the same call after different outcomes disagree about it
+permanently, and the brain is free to ignore the whole thing: the learned value arrives as one
+ordinary input competing for the same synapses as pitch and loudness. Nothing here is inherited.
+
+**Calling is expensive.** Energy cost scales with the square of loudness and rises with pitch, so
+the call that carries furthest also costs the most and gives away the most about where its maker is.
+Nothing rewards calling. Any benefit has to come from what other organisms do about it.
 
 ### Kin recognition
 
@@ -288,6 +332,25 @@ light-weighted activity, and the plant/carrion/prey split of intake. The labels 
 "generalist" or "unclear", which they often do. A species that changes habitat changes its
 description.
 
+**Call statistics** (`analysis/acoustics.ts`) is a field biologist, not part of the animal. It
+clusters finished vocalisations into recurring acoustic shapes online, then reports, per shape: what
+tended to be true of the world when it was used, what listeners tended to do in the seconds after
+hearing it, how tightly it is reproduced, which species use it, how many generations it has spanned,
+whether shapes follow each other in non-random order, whether calls answer calls above the rate at
+which organisms have simply heard something, whether a reply resembles what it answered, and whether
+different parts of the map have drifted into different repertoires. Anything that recurs but fits no
+established shape is kept as an unknown pattern rather than forced into a category.
+
+Associations are reported as standardised differences against the population, and the panel keeps
+`OBSERVED`, `CORRELATED`, `INFERRED` and `UNKNOWN` visibly separate. The strongest claim the UI will
+make is *"this shape is used disproportionately when the emitter is hungry, and listeners tend to
+approach"* — never *"this means food"*.
+
+**The analyser cannot reach the world.** There is no path from a call shape back into any organism's
+senses, brain or fitness, and this is asserted rather than asserted-to-be-true: a test runs the same
+seed twice while destroying the analyser's entire state every few ticks in one of them, and requires
+the two worlds to unfold identically.
+
 **Chronicle** (`analysis/chronicle.ts`) does two things. *Firsts* fire when a measurable threshold is
 crossed and stays crossed for several samples — persistence is what separates "a channel twitched
 once" from "this population communicates" — and each one records the numbers that triggered it.
@@ -295,7 +358,10 @@ once" from "this population communicates" — and each one records the numbers t
 series' own recent history, sustained. Each baseline is the series' own past, so an anomaly means
 "unusual for this world", not "unusual in general".
 
-If communication never evolves, no communication milestone is ever written. That is the whole point.
+Nine of the firsts are acoustic — sound produced at all, repeated shapes, an association, calls
+following calls, replies resembling what they answer, non-random order, regional divergence, a shape
+outliving its generation. If none of that happens, none of them is ever written, and a run that
+stays silent, chaotic or completely alien is a valid result rather than a failure.
 
 ## Experiments on forks
 
@@ -385,13 +451,42 @@ Map overlays show the raw environment fields. Vegetation and Signal Field are th
 while it runs — they show what organisms are actually responding to.
 
 Click any organism to open the inspector: genome, expressed body, life history, ancestry, kin
-markers, its episodic memories with their valence and distance, what it is currently broadcasting on
-each channel, which behaviour lineage it is running, and its **live brain** with activations and
-weights — so "why did it do that" is answerable.
+markers, its episodic memories with their valence and distance, its vocal and auditory bands in
+hertz, the sounds currently in its echoic buffer, what it has personally come to expect after each
+sound it keeps hearing, which behaviour lineage it is running, and its **live brain** with
+activations and weights — so "why did it do that" is answerable.
 
 Panels, left to right: **World** (live stats), **Charts**, **Species** (with inferred niches),
-**Signals** (measured channel semantics and cultural transmission), **History** (derived milestones
-and anomalies), **Lab** (forked experiments), **Museum**, **Inspect**, **Events**, **Setup**.
+**Voice** (the acoustic observatory and First Contact), **Culture** (imitation and meme lineages),
+**History** (derived milestones and anomalies), **Lab** (forked experiments), **Museum**,
+**Inspect**, **Events**, **Setup**.
+
+### Listening to it
+
+The Voice panel has a **listen** button. Sound is off until you press it, because browsers require a
+gesture to start audio and starting it unasked would be rude anyway.
+
+The simulation never produces audio. It produces acoustic parameters, for thousands of organisms, as
+six floats each — and only the dozen voices nearest the centre of the view are ever turned into real
+sound, by a procedural synthesiser built from oscillators, a noise source and a filter. Every knob
+on it comes from the organism's own vocal parameters, so what you hear is what its apparatus is
+doing. That split is what keeps the audio affordable at any population.
+
+### First contact
+
+The same panel can open your **microphone**. Your voice is measured locally into the same six
+numbers — a pitch by autocorrelation, a loudness, a noisiness from spectral flatness, a brightness
+from the spectral centroid — and injected into the world at a point on the map, where it propagates
+and is perceived by exactly the same code as any other sound. **The audio never leaves the page**,
+there is no speech recognition, and nothing maps a human sound to an outcome.
+
+The panel reports how hard listeners close on your sounds against how hard they close on sounds made
+by organisms, and says plainly that a difference between the two is a difference in movement rather
+than evidence that anything was understood — novelty alone would produce one.
+
+If you want a noise of yours to come to mean something, you have to make it mean something the way
+the world does: make the same noise, cause something the organisms care about, and do it often
+enough that the ones who happen to react usefully outlive the ones who do not. It may never work.
 
 ---
 
@@ -468,11 +563,18 @@ the mutation operators — never in an `if` statement that produces the behaviou
 Implemented: procedural world with climate and seasons, full genome/phenotype system, recurrent
 brains with lifetime plasticity, emergent diet and predation, carrion, pheromone fields, sexual and
 asexual reproduction, speciation with a phylogenetic tree, permanent extinction records, world
-events, ten experiment presets, WebGPU rendering with a Canvas2D fallback, deterministic core,
+events, eleven experiment presets, WebGPU rendering with a Canvas2D fallback, deterministic core,
 IndexedDB persistence with file export/import, live charts and a full organism inspector.
 
-Added in the deep-ecosystem upgrade: episodic place memory with evolvable capacity and real upkeep,
-eight broadcast channels with measured semantics, evolved hearing range, Mendelian kin markers,
+Added in the acoustic-communication upgrade: a genetically determined vocal tract and ear, sound
+that propagates with frequency-dependent absorption, terrain absorption and frequency-selective
+masking, perceptual jitter, echoic memory, a private reward-modulated associative memory for sounds,
+a call-clustering observer that measures repertoire, sequence, turn-taking, imitation, dialects and
+cross-generational persistence without ever defining a meaning, procedural Web Audio output and
+local microphone input for first-contact experiments.
+
+Added in the deep-ecosystem upgrade before it: episodic place memory with evolvable capacity and
+real upkeep, evolved hearing range, Mendelian kin markers,
 energy transfer between organisms, social learning that copies soma but never germline, meme lineage
 tracking, telemetry-derived niche inference, a chronicle of derived milestones and statistical
 anomalies, mutation categorisation, and byte-exact world forking with controlled multi-arm
@@ -509,8 +611,6 @@ Deliberately not built yet, in rough priority order:
 - **Morphological evolution** — segments, limbs and eye placement encoded as developmental
   parameters, so mutation can produce genuinely strange body plans rather than variations on an
   ellipse.
-- **Cultural transmission** — learned information passing between organisms rather than only through
-  the germline. The germline/soma split already exists to make this possible.
 
 A note on the population ceiling: the CPU tick is dominated by the neighbourhood scan first and the
 brain forward pass second. Two changes already took it from ~200 ms to ~35 ms per tick at 8000
@@ -529,6 +629,7 @@ is worth investigating rather than raising the cap.
 ```bash
 npm run bench -- 25000 2024      # headless run: population, species, generation, ms/tick
 npm run sweep -- 6000 8          # survival across N seeds — catches fragile founder economies
+npm run voice -- 12000           # what the acoustic layer is doing: calls, shapes, sequence, dialects
 ```
 
 Both print incrementally, which the test runner does not, and both bypass the browser entirely.

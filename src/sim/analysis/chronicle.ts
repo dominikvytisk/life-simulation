@@ -103,6 +103,14 @@ export class Chronicle {
       carnivory: number;
       signalActivity: number;
       signalMeaningConfidence: number;
+      callsPerTick: number;
+      vocalDiversity: number;
+      sequenceStructure: number;
+      turnTaking: number;
+      vocalConvergence: number;
+      dialectDivergence: number;
+      callGenerationSpan: number;
+      signalCoupling: number;
       transmissionIndex: number;
       imitationsPerTick: number;
       posthumousMemes: number;
@@ -142,14 +150,126 @@ export class Chronicle {
       log,
     );
 
+    // ---- acoustic firsts ----
+    // Each of these is a threshold on something measured, and each can simply
+    // never fire. A silent world produces none of them, which is a result.
     this.candidate(
-      'first-communication',
-      m.signalMeaningConfidence > 0.25 && m.signalActivity > 0.05,
+      'first-vocalisation',
+      m.callsPerTick > 0.02,
       6,
       () => ({
-        label: 'Signals carry information',
+        label: 'Sound is being produced',
         generation: m.generation,
-        evidence: `strongest channel correlation r=${m.signalMeaningConfidence.toFixed(2)} sustained over 6 samples`,
+        evidence: `${m.callsPerTick.toFixed(3)} completed vocalisations per tick, paid for in energy`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-repeated-calls',
+      m.vocalDiversity > 0.5,
+      6,
+      () => ({
+        label: 'Repeated acoustic patterns',
+        generation: m.generation,
+        evidence: `calls fall into recurring shapes, ${m.vocalDiversity.toFixed(2)} bits of repertoire entropy`,
+      }),
+      tick,
+      log,
+    );
+
+    // Two separate claims, deliberately. The first is cheap and says only that
+    // calling tracks the caller's state — a groan would satisfy it. The second
+    // needs the circumstance *and* the listeners' behaviour to line up at once
+    // on the same shape, which is a great deal harder and is what would have to
+    // be true for a sound to be doing any work.
+    this.candidate(
+      'first-distinctive-call',
+      m.signalMeaningConfidence > 1 && m.callsPerTick > 0.02,
+      8,
+      () => ({
+        label: 'A call shape stands out statistically',
+        generation: m.generation,
+        evidence: `standardised difference d=${m.signalMeaningConfidence.toFixed(2)} against the population on one side or the other — either the circumstances the shape is used in or what listeners do next, but not necessarily both`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-communication',
+      m.signalCoupling > 0.6 && m.callsPerTick > 0.02,
+      10,
+      () => ({
+        label: 'A call shape is used distinctively and answered distinctively',
+        generation: m.generation,
+        evidence: `both sides hold at once on the same shape, weaker side d=${m.signalCoupling.toFixed(2)}, sustained over 10 samples — still a correlation, and still not a demonstration that the sound caused the response`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-turn-taking',
+      m.turnTaking > 0.12,
+      8,
+      () => ({
+        label: 'Calls follow calls',
+        generation: m.generation,
+        evidence: `vocalising after hearing runs ${(m.turnTaking * 100).toFixed(0)} points above the rate of simply having heard something`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-vocal-imitation',
+      m.vocalConvergence > 0.03,
+      8,
+      () => ({
+        label: 'Replies resemble what they answer',
+        generation: m.generation,
+        evidence: `answering calls sit ${m.vocalConvergence.toFixed(3)} closer in acoustic space than unrelated calls do`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-sequence',
+      m.sequenceStructure > 0.25,
+      8,
+      () => ({
+        label: 'Calls come in non-random order',
+        generation: m.generation,
+        evidence: `${m.sequenceStructure.toFixed(2)} bits of mutual information between one call and the next`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-dialect',
+      m.dialectDivergence > 0.25,
+      10,
+      () => ({
+        label: 'Regional repertoires diverge',
+        generation: m.generation,
+        evidence: `mean Jensen-Shannon divergence ${m.dialectDivergence.toFixed(2)} bits between parts of the map`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-inherited-convention',
+      m.callGenerationSpan > 6,
+      6,
+      () => ({
+        label: 'A call outlives its generation',
+        generation: m.generation,
+        evidence: `one call shape has been in continuous use across ${m.callGenerationSpan.toFixed(0)} generations`,
       }),
       tick,
       log,
@@ -244,6 +364,10 @@ export class Chronicle {
     this.checkSeries('carnivory', m.carnivory, tick, log);
     this.checkSeries('group size', m.meanGroupSize, tick, log);
     this.checkSeries('signal activity', m.signalActivity, tick, log);
+    this.checkSeries('calls per tick', m.callsPerTick, tick, log);
+    this.checkSeries('vocal diversity', m.vocalDiversity, tick, log);
+    this.checkSeries('dialect divergence', m.dialectDivergence, tick, log);
+    this.checkSeries('signal coupling', m.signalCoupling, tick, log);
   }
 
   /** Welford running statistics plus a persistence-gated z-test. */

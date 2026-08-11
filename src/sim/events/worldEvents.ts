@@ -106,10 +106,27 @@ export const WORLD_EVENT_INFO: Record<
   },
 };
 
+/** How much racket each kind of weather makes. Nothing else consults this. */
+const EVENT_NOISE: Partial<Record<WorldEventTypeId, number>> = {
+  rain: 0.22,
+  flood: 0.12,
+  volcano: 0.18,
+  fire: 0.14,
+  meteor: 0.1,
+  heatWave: 0.04,
+};
+
 export class WorldEventSystem {
   private active: ActiveForcing[] = [];
   /** Extra water level added by floods. */
   floodOffset = 0;
+  /**
+   * Ambient acoustic noise from weather, 0 when the world is still. Rain and
+   * wind are loud, and a loud world is one where a quiet call does not arrive.
+   * This is weather, not a communication mechanic: it happens to organisms, and
+   * whether they do anything about it is their problem.
+   */
+  acousticNoise = 0;
 
   /**
    * Apply an event. Localised events write into the terrain immediately;
@@ -226,6 +243,7 @@ export class WorldEventSystem {
   update(cfg: SimConfig): void {
     let temp = 0;
     let veg = 1;
+    let noise = 0;
     for (let i = this.active.length - 1; i >= 0; i--) {
       const a = this.active[i];
       a.ticksLeft--;
@@ -234,10 +252,12 @@ export class WorldEventSystem {
       const envelope = Math.min(1, Math.min(t * 6, (1 - t) * 6 + 0.35));
       temp += a.tempDelta * envelope;
       veg *= 1 + (a.vegMultiplier - 1) * envelope;
+      noise += (EVENT_NOISE[a.type] ?? 0) * envelope;
       if (a.ticksLeft <= 0) this.active.splice(i, 1);
     }
     cfg.globalTemperatureOffset = temp;
     cfg.vegetationGrowthMultiplier = veg;
+    this.acousticNoise = noise;
     if (this.floodOffset > 0) this.floodOffset *= 0.99975;
   }
 
@@ -252,6 +272,7 @@ export class WorldEventSystem {
   reset(): void {
     this.active.length = 0;
     this.floodOffset = 0;
+    this.acousticNoise = 0;
   }
 
   private scorchArea(world: World, x: number, y: number, r: number, intensity: number): void {

@@ -40,12 +40,28 @@ export const Locus = {
   // --- cognition, communication and sociality (capabilities, never behaviour) ---
   MemoryCapacity: 28, // number of episodic place-memories that can be held
   MemoryPersistence: 29, // how slowly those memories fade
-  HearingRange: 30, // radius over which broadcast signals are audible
+  HearingRange: 30, // radius over which sound is audible at all
   SocialLearning: 31, // how strongly another organism's soma can be copied
+
+  // --- vocal anatomy (what sounds the body can physically make) ---
+  // These describe a sound-producing organ, not a vocabulary. Nothing here
+  // knows what a sound is for; between them they only decide which corner of
+  // acoustic space a given lineage can reach.
+  VocalLowEdge: 32, // one edge of the producible frequency band
+  VocalHighEdge: 33, // the other edge; the pair defines range and register
+  VocalTimbre: 34, // tract character: bright/tonal at 0, rough/noisy at 1
+  VocalAgility: 35, // how fast pitch and amplitude can be modulated
+  VocalPower: 36, // loudness the apparatus can drive
+
+  // --- auditory anatomy (what sounds the body can physically hear) ---
+  AuditoryLowEdge: 37,
+  AuditoryHighEdge: 38,
+  AuditoryResolution: 39, // frequency discrimination; blurs everything below it
+  SoundMemory: 40, // echoic depth and how many sound patterns can be held
 } as const;
 
 export type LocusName = keyof typeof Locus;
-export const GENOME_LENGTH = 32;
+export const GENOME_LENGTH = 41;
 
 export const LOCUS_NAMES: string[] = (() => {
   const arr = new Array<string>(GENOME_LENGTH);
@@ -87,6 +103,15 @@ export const LOCUS_LABELS: Record<string, string> = {
   MemoryPersistence: 'Memory persistence',
   HearingRange: 'Hearing range',
   SocialLearning: 'Social learning',
+  VocalLowEdge: 'Voice band edge A',
+  VocalHighEdge: 'Voice band edge B',
+  VocalTimbre: 'Vocal tract timbre',
+  VocalAgility: 'Vocal agility',
+  VocalPower: 'Vocal power',
+  AuditoryLowEdge: 'Hearing band edge A',
+  AuditoryHighEdge: 'Hearing band edge B',
+  AuditoryResolution: 'Frequency resolution',
+  SoundMemory: 'Sound memory',
 };
 
 /**
@@ -106,6 +131,19 @@ export const DISTANCE_WEIGHTS = (() => {
   w[Locus.MemoryCapacity] = 0.6;
   w[Locus.MemoryPersistence] = 0.4;
   w[Locus.SocialLearning] = 0.5;
+  // Vocal and auditory anatomy weigh less than body plan but more than a
+  // neutral marker: two populations that can no longer hear each other are
+  // genuinely diverging, and this is the term that lets that show up in the
+  // speciation measure without dominating it.
+  w[Locus.VocalLowEdge] = 0.7;
+  w[Locus.VocalHighEdge] = 0.7;
+  w[Locus.VocalTimbre] = 0.5;
+  w[Locus.VocalAgility] = 0.5;
+  w[Locus.VocalPower] = 0.5;
+  w[Locus.AuditoryLowEdge] = 0.7;
+  w[Locus.AuditoryHighEdge] = 0.7;
+  w[Locus.AuditoryResolution] = 0.4;
+  w[Locus.SoundMemory] = 0.5;
   return w;
 })();
 
@@ -147,8 +185,20 @@ export const LOCUS_CATEGORY: Uint8Array = (() => {
     Locus.SmellRange,
     Locus.HearingRange,
     Locus.SignalSensitivity,
+    Locus.AuditoryLowEdge,
+    Locus.AuditoryHighEdge,
+    Locus.AuditoryResolution,
   ]) {
     c[l] = MutationCategory.Sensory;
+  }
+  for (const l of [
+    Locus.VocalLowEdge,
+    Locus.VocalHighEdge,
+    Locus.VocalTimbre,
+    Locus.VocalAgility,
+    Locus.VocalPower,
+  ]) {
+    c[l] = MutationCategory.Morphological;
   }
   for (const l of [
     Locus.Lifespan,
@@ -166,6 +216,7 @@ export const LOCUS_CATEGORY: Uint8Array = (() => {
     Locus.MemoryCapacity,
     Locus.MemoryPersistence,
     Locus.SocialLearning,
+    Locus.SoundMemory,
   ]) {
     c[l] = MutationCategory.Neural;
   }

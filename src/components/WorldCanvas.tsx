@@ -74,6 +74,16 @@ export function WorldCanvas() {
           cam.y += (inspectionRef.current.y - cam.y) * 0.12;
         }
 
+        // The listening point follows the camera, so what is audible is what
+        // is on screen. The client throttles this and ignores it entirely
+        // while nothing is listening.
+        {
+          const cam = cameraRef.current;
+          const r = wrap.getBoundingClientRect();
+          const halfWidth = (r.width * dpr) / 2 / cam.scale;
+          client.trackListener(cam.x, cam.y, Math.max(240, Math.min(1600, halfWidth * 1.2)));
+        }
+
         if (client.snapshot) {
           renderer.render(
             client.snapshot,

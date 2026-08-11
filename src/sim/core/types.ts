@@ -2,10 +2,36 @@
  * cloneable — no classes, no functions. */
 import type { NicheProfile } from '../analysis/niches';
 import type { CultureReport } from '../analysis/culture';
-import type { SignalMeaning } from '../analysis/signals';
+import type { AcousticReport, CallCluster } from '../analysis/acoustics';
 import type { AnomalyReport, Milestone } from '../analysis/chronicle';
 
-export type { NicheProfile, CultureReport, SignalMeaning, AnomalyReport, Milestone };
+export type { NicheProfile, CultureReport, AcousticReport, CallCluster, AnomalyReport, Milestone };
+
+/** What the human-interaction mode has measured. Behavioural difference only. */
+export interface FirstContactReport {
+  sounds: number;
+  humanApproach: number;
+  nativeApproach: number;
+  difference: number;
+  samples: number;
+}
+
+/** One voice close enough to the listening point to be worth synthesising. */
+export interface AudibleVoice {
+  id: number;
+  speciesId: number;
+  hue: number;
+  x: number;
+  y: number;
+  distance: number;
+  pitch: number;
+  loudness: number;
+  noisiness: number;
+  timbre: number;
+  slope: number;
+  tremolo: number;
+  external: boolean;
+}
 
 export interface Stats {
   tick: number;
@@ -35,13 +61,34 @@ export interface Stats {
   avgHearingRange: number;
   avgSocialLearning: number;
   avgGroupSize: number;
-  /** Mean broadcast output per organism, across all channels. */
+  /** Mean vocal loudness per organism — how much sound the world contains. */
   broadcastActivity: number;
+  /** Completed vocalisations per tick across the whole population. */
+  callsPerTick: number;
+  /** Shannon entropy over recurring call shapes, in bits. */
+  vocalDiversity: number;
+  /** Mean scatter within call shapes — low means calls are reproduced exactly. */
+  vocalPrecision: number;
+  signalClusters: number;
+  /** Bits the previous call gives about the next one. */
+  sequenceStructure: number;
+  /** How much more often calls follow hearing than chance would give. */
+  turnTaking: number;
+  /** How much more a reply resembles what it answered than chance would give. */
+  vocalConvergence: number;
+  /** Mean divergence between regional repertoires, in bits. */
+  dialectDivergence: number;
+  /** Generations the longest-lived call shape has persisted across. */
+  callGenerationSpan: number;
+  /** Best shape for which emitter circumstance *and* listener response both
+   * hold at once — the two-sided version of the claim. */
+  signalCoupling: number;
   /** Learned-behaviour clustering beyond what relatedness explains. */
   transmissionIndex: number;
   distinctMemes: number;
   posthumousMemes: number;
-  /** Strongest measured signal-channel correlation, 0 if none detected. */
+  /** Strongest measured association between a call shape and anything at all,
+   * as a standardised difference. 0 means nothing was detected. */
   signalMeaningConfidence: number;
   diversity: number;
   carnivory: number; // mean gut specialisation, 0 = all plant, 1 = all meat
@@ -115,7 +162,24 @@ export interface OrganismInspection {
   energyReceived: number;
   kinTag: number[];
   memories: { x: number; y: number; valence: number; strength: number }[];
-  emitted: number[];
+  /** Current acoustic frame: pitch, loudness, noisiness, timbre, sweep, tremolo. */
+  voice: number[];
+  calling: boolean;
+  callTicks: number;
+  ticksSinceCall: number;
+  /** -1 when this organism has never heard anything. */
+  ticksSinceHeard: number;
+  /** What this organism has learned to expect after the last sound it heard. */
+  heardValence: number;
+  heardFamiliarity: number;
+  echoic: { pitch: number; loudness: number; noisiness: number; duration: number; gap: number }[];
+  soundMemory: {
+    pitch: number;
+    duration: number;
+    noisiness: number;
+    valence: number;
+    strength: number;
+  }[];
   genome: number[];
   phenotype: Record<string, number>;
   brainInputs: number[];

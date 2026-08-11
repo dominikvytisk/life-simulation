@@ -8,6 +8,7 @@
  * ecosystem collapses into one strategy.
  */
 import { Locus } from './loci';
+import { MAX_ECHOIC, MAX_PROTOTYPES, bandFromGenes } from '../acoustics/sound';
 
 export interface Phenotype {
   radius: number;
@@ -45,6 +46,25 @@ export interface Phenotype {
   memoryDecay: number;
   hearingRange: number;
   socialLearningRate: number;
+
+  // ---- vocal organ: the reachable corner of acoustic space ----
+  vocalLow: number;
+  vocalHigh: number;
+  vocalPower: number;
+  vocalSlew: number;
+  vocalAgility: number;
+  timbreCenter: number;
+  timbreSpan: number;
+  noiseCenter: number;
+  noiseSpan: number;
+
+  // ---- auditory organ ----
+  auditoryLow: number;
+  auditoryHigh: number;
+  auditoryResolution: number;
+  echoicDepth: number;
+  soundPrototypes: number;
+
   /** Total per-tick upkeep implied by the body plan. */
   upkeep: number;
 }
@@ -124,8 +144,41 @@ export function expressInto(out: Phenotype, g: Float32Array, off: number): Pheno
   // memory has to be actively selected for rather than being the default draw.
   out.memorySlots = Math.round(MAX_MEMORY * g[off + Locus.MemoryCapacity] ** 2);
   out.memoryDecay = lerp(0.02, 0.0004, g[off + Locus.MemoryPersistence] ** 0.6);
-  out.hearingRange = lerp(0, 180, g[off + Locus.HearingRange] ** 1.4);
+  out.hearingRange = lerp(0, 320, g[off + Locus.HearingRange] ** 1.4);
   out.socialLearningRate = g[off + Locus.SocialLearning] ** 2 * 0.35;
+
+  // ---- vocal organ ----
+  // Two unordered edges become a band, so one mutation can move one edge. A
+  // narrow band is not a defect: it is a cheap organ with a small acoustic
+  // space, and whether that is a handicap depends entirely on what the
+  // neighbours can hear.
+  const vb = bandFromGenes(g[off + Locus.VocalLowEdge], g[off + Locus.VocalHighEdge]);
+  out.vocalLow = vb.low;
+  out.vocalHigh = vb.high;
+  out.vocalPower = lerp(0.12, 1, g[off + Locus.VocalPower] ** 1.3);
+  const agility = g[off + Locus.VocalAgility];
+  out.vocalAgility = agility;
+  // Slew limits how far pitch can move in one tick. A sluggish tract can only
+  // hold long flat notes; an agile one can chirp. Neither is better a priori.
+  out.vocalSlew = lerp(0.015, 0.4, agility ** 1.4);
+  const timbre = g[off + Locus.VocalTimbre];
+  out.timbreCenter = timbre;
+  out.timbreSpan = 0.08 + 0.45 * agility;
+  // One anatomical axis with two consequences, as in a real tract: a bright
+  // resonant shape is also a tonal one, a rough shape is also a turbulent one.
+  out.noiseCenter = lerp(0.78, 0.16, timbre);
+  out.noiseSpan = 0.1 + 0.6 * agility;
+
+  // ---- auditory organ ----
+  const ab = bandFromGenes(g[off + Locus.AuditoryLowEdge], g[off + Locus.AuditoryHighEdge]);
+  out.auditoryLow = ab.low;
+  out.auditoryHigh = ab.high;
+  out.auditoryResolution = g[off + Locus.AuditoryResolution];
+  // Sound memory buys both depth of the echoic window and how many recurring
+  // patterns can be held. Squared, so a deep memory has to be selected for.
+  const sm = g[off + Locus.SoundMemory] ** 2;
+  out.echoicDepth = Math.round(MAX_ECHOIC * sm);
+  out.soundPrototypes = Math.round(MAX_PROTOTYPES * sm);
 
   // Everything the body costs to simply exist, per tick.
   //
@@ -149,8 +202,21 @@ export function expressInto(out: Phenotype, g: Float32Array, off: number): Pheno
     // a memory for a long time is a different cost from holding many.
     out.memorySlots * 0.004 +
     out.memorySlots * (0.02 - out.memoryDecay) * 0.2 +
-    (out.hearingRange / 180) * 0.012 +
-    out.socialLearningRate * 0.05;
+    (out.hearingRange / 320) * 0.014 +
+    out.socialLearningRate * 0.05 +
+    // A vocal organ costs something to carry even when silent: a wide range and
+    // a powerful, agile tract are tissue. Actually using it costs energy on top
+    // of this, per tick of calling.
+    (out.vocalHigh - out.vocalLow) * 0.012 +
+    out.vocalPower * 0.016 +
+    out.vocalAgility * 0.012 +
+    // A sharp ear is expensive in every animal that has one. Without this an
+    // organism would take perfect discrimination for free and there would be no
+    // pressure toward signals that are easy to tell apart.
+    (out.auditoryHigh - out.auditoryLow) * 0.01 +
+    out.auditoryResolution * 0.02 +
+    out.echoicDepth * 0.004 +
+    out.soundPrototypes * 0.005;
 
   return out;
 }

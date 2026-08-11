@@ -11,11 +11,13 @@ import type { SimConfig } from '../sim/core/config';
 import type { OverlayMode } from '../sim/world/painter';
 import type { WorldEventSpec } from '../sim/events/worldEvents';
 import type {
+  AcousticReport,
   AnomalyReport,
+  AudibleVoice,
   CultureReport,
+  FirstContactReport,
   Milestone,
   OrganismInspection,
-  SignalMeaning,
   SimEventDTO,
   SpeciesSummary,
   Stats,
@@ -33,6 +35,14 @@ export type ToWorker =
   | { type: 'overlay'; mode: OverlayMode }
   | { type: 'worldEvent'; spec: WorldEventSpec }
   | { type: 'inject'; count: number }
+  /** Where the human is listening from, in world units. Drives audio only. */
+  | { type: 'listener'; x: number; y: number; radius: number; enabled: boolean }
+  /**
+   * Put a sound into the world from outside it. `frame` is a raw acoustic
+   * frame — pitch, loudness, noisiness, timbre, sweep, tremolo — extracted
+   * locally from a microphone. No text, no meaning, no label.
+   */
+  | { type: 'externalSound'; x: number; y: number; frame: number[]; ticks: number }
   | { type: 'requestDetail' }
   | { type: 'requestHistory' }
   | { type: 'returnSnapshot'; buffer: ArrayBuffer }
@@ -54,6 +64,8 @@ export type FromWorker =
       events?: SimEventDTO[];
       eventRevision: number;
       selectedId: number;
+      /** The handful of voices near the listening point, for synthesis. */
+      voices?: AudibleVoice[];
     }
   | {
       type: 'detail';
@@ -62,8 +74,8 @@ export type FromWorker =
       extinct: SpeciesSummary[];
       activeEvents: { type: string; ticksLeft: number; progress: number }[];
       culture: CultureReport;
-      signals: SignalMeaning[];
-      signalSamples: number;
+      acoustics: AcousticReport;
+      firstContact: FirstContactReport;
       milestones: Milestone[];
       anomalies: AnomalyReport[];
       mutationTally: number[];
@@ -72,7 +84,8 @@ export type FromWorker =
   | { type: 'picked'; id: number }
   | { type: 'saved'; payload: unknown }
   | { type: 'forked'; payload: unknown }
-  | { type: 'loaded' };
+  /** `error` is set when the payload could not be resumed into this build. */
+  | { type: 'loaded'; error?: string };
 
 export const SPEED_PRESETS = [
   { label: '1×', ticksPerFrame: 1, unlimited: false },

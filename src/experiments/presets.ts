@@ -101,10 +101,10 @@ export const EXPERIMENTS: Experiment[] = [
   },
   {
     id: 'communication',
-    name: 'Signal Economy',
+    name: 'Scent Economy',
     icon: '📡',
     hypothesis:
-      'Long-lived, far-diffusing signal fields plus clustered food should make broadcasting worth its metabolic cost.',
+      'Long-lived, far-diffusing pheromone fields plus scarce food should make marking worth its metabolic cost.',
     whatToWatch:
       'Signal activity rising alongside population. Switch the map to the Signal Field overlay and look for trails and territories.',
     config: {
@@ -113,6 +113,28 @@ export const EXPERIMENTS: Experiment[] = [
       signalDeposit: 0.6,
       vegetationGrowthRate: 0.013,
       initialPopulation: 2200,
+    },
+  },
+  {
+    id: 'acoustic',
+    name: 'Still Air',
+    icon: '🔊',
+    hypothesis:
+      'A quiet world where sound is cheap and carries far is the friendliest possible conditions for calling to pay off. If nothing acoustic emerges even here, the bottleneck is not the physics.',
+    whatToWatch:
+      'The Voice panel. Calls per tick first, then whether they fall into recurring shapes, and only then whether any shape is both used distinctively and answered distinctively. Most runs stop at the first step, and that is a result.',
+    config: {
+      // Cheap to produce, slow to be absorbed, and almost nothing else making
+      // noise — every dial that could stand between a call and a listener,
+      // turned down. What the organisms do about it is still up to them.
+      vocalCost: 0.02,
+      soundAbsorption: 0.003,
+      soundAbsorptionPitch: 0.007,
+      ambientNoiseFloor: 0.008,
+      selfMaskingFactor: 0.3,
+      // Patchy food, so that where the food is, is worth knowing.
+      vegetationGrowthRate: 0.014,
+      initialPopulation: 2600,
     },
   },
   {

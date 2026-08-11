@@ -3,10 +3,23 @@ import { Simulation } from './simulation';
 import { Rng } from './core/rng';
 import { encodeMemory, recallInto, makeRecall, ENCODE_THRESHOLD } from './memory/memory';
 import { MAX_MEMORY, expressInto, makePhenotype } from './genome/phenotype';
-import { SignalAnalyzer, CONTEXT_COUNT, RESPONSE_COUNT } from './analysis/signals';
+import { AcousticAnalyzer, ASSOCIATION_THRESHOLD } from './analysis/acoustics';
+import { CALL_CONTEXT_DIM, RESPONSE_DIM, Response } from './acoustics/context';
+import {
+  CALL_DIM,
+  Call,
+  bandFromGenes,
+  callDistance,
+  hzToPitch,
+  pitchToHz,
+  attenuation,
+  bandResponse,
+  MAX_PROTOTYPES,
+} from './acoustics/sound';
+import { creditTrace, recognise } from './acoustics/association';
 import { Chronicle } from './analysis/chronicle';
 import { EventLog } from './events/eventLog';
-import { SIGNAL_CHANNELS, PLASTIC_STRIDE, imitate } from './brain/brain';
+import { PLASTIC_STRIDE, imitate } from './brain/brain';
 import { GENOME_LENGTH, LOCUS_CATEGORY, Locus, makeMutationTally } from './genome/loci';
 import { mutateGenome, inheritKinTags, randomKinTags } from './evolution/reproduction';
 import { KIN_TAG_LENGTH } from './organisms/population';
@@ -189,47 +202,322 @@ describe('social learning', () => {
   });
 });
 
-describe('signal analyzer', () => {
-  it('reports nothing until it has enough observations', () => {
-    const a = new SignalAnalyzer();
-    const emit = new Float32Array(SIGNAL_CHANNELS);
-    const ctx = new Float32Array(CONTEXT_COUNT);
-    const heard = new Float32Array(SIGNAL_CHANNELS);
-    const resp = new Float32Array(RESPONSE_COUNT);
-    for (let i = 0; i < 50; i++) a.observe(emit, 0, ctx, heard, resp);
-    expect(a.meanings()).toHaveLength(0);
+describe('acoustic representation', () => {
+  it('maps pitch to hertz logarithmically and back again', () => {
+    for (const hz of [80, 220, 440, 1000, 4000]) {
+      expect(pitchToHz(hzToPitch(hz))).toBeCloseTo(hz, 0);
+    }
+    // Equal ratios are equal distances, which is what makes the space a
+    // perceptual one rather than a linear one.
+    const octaveLow = hzToPitch(400) - hzToPitch(200);
+    const octaveHigh = hzToPitch(3200) - hzToPitch(1600);
+    expect(octaveLow).toBeCloseTo(octaveHigh, 5);
   });
 
-  it('finds a correlation that is really there and not one that is not', () => {
-    const a = new SignalAnalyzer();
-    const emit = new Float32Array(SIGNAL_CHANNELS);
-    const ctx = new Float32Array(CONTEXT_COUNT);
-    const heard = new Float32Array(SIGNAL_CHANNELS);
-    const resp = new Float32Array(RESPONSE_COUNT);
-    const rng = new Rng(65);
+  it('turns two unordered genes into a band with a floor on its width', () => {
+    const a = bandFromGenes(0.7, 0.2);
+    expect(a.low).toBeCloseTo(0.2, 6);
+    expect(a.high).toBeCloseTo(0.7, 6);
+    const narrow = bandFromGenes(0.5, 0.5);
+    expect(narrow.high - narrow.low).toBeGreaterThan(0.05);
+    const clipped = bandFromGenes(0, 0);
+    expect(clipped.low).toBeGreaterThanOrEqual(0);
+    expect(clipped.high).toBeLessThanOrEqual(1);
+  });
 
-    for (let i = 0; i < 3000; i++) {
-      const danger = rng.next();
-      ctx.fill(0);
-      ctx[2] = danger; // "predator near"
-      emit.fill(0);
-      emit[3] = danger * 0.9 + rng.next() * 0.1; // channel 3 tracks danger
-      emit[5] = rng.next(); // channel 5 is pure noise
-      heard.fill(0);
-      heard[3] = danger;
-      resp.fill(0);
-      resp[0] = danger * 0.8 + rng.next() * 0.2; // listeners move when they hear it
-      a.observe(emit, 0, ctx, heard, resp);
+  it('attenuates high sounds faster than low ones over the same distance', () => {
+    const low = attenuation(200, 0.05, 55, 0.006, 0.013);
+    const high = attenuation(200, 0.95, 55, 0.006, 0.013);
+    expect(low).toBeGreaterThan(high * 2);
+    // And both fall off with distance.
+    expect(attenuation(400, 0.5, 55, 0.006, 0.013)).toBeLessThan(
+      attenuation(100, 0.5, 55, 0.006, 0.013),
+    );
+  });
+
+  it('rolls off sound outside the listener band', () => {
+    expect(bandResponse(0.5, 0.3, 0.7)).toBe(1);
+    expect(bandResponse(0.9, 0.3, 0.7)).toBeLessThan(0.15);
+    expect(bandResponse(0.1, 0.3, 0.7)).toBeLessThan(0.15);
+  });
+});
+
+describe('auditory associative memory', () => {
+  const makeMemory = () => ({
+    proto: new Float32Array(MAX_PROTOTYPES * CALL_DIM),
+    valence: new Float32Array(MAX_PROTOTYPES),
+    strength: new Float32Array(MAX_PROTOTYPES),
+    trace: new Float32Array(MAX_PROTOTYPES),
+  });
+
+  const call = (pitch: number) => {
+    const d = new Float32Array(CALL_DIM);
+    d[Call.Pitch] = pitch;
+    d[Call.Loudness] = 0.5;
+    d[Call.Duration] = 0.3;
+    return d;
+  };
+
+  it('an organism with no auditory memory learns nothing and reports nothing', () => {
+    const m = makeMemory();
+    const r = recognise(m.proto, 0, m.valence, m.strength, m.trace, 0, 0, call(0.5), 0, 1, 0.1);
+    expect(r.index).toBe(-1);
+    expect(r.valence).toBe(0);
+  });
+
+  // recognise() returns a shared scratch object, so every assertion here reads
+  // the fields out immediately rather than holding onto the result.
+  const hear = (
+    m: ReturnType<typeof makeMemory>,
+    pitch: number,
+    resolution = 1,
+    slots = 4,
+  ) => {
+    const r = recognise(
+      m.proto, 0, m.valence, m.strength, m.trace, 0, slots, call(pitch), 0, resolution, 0.2,
+    );
+    return { index: r.index, novel: r.novel, valence: r.valence, familiarity: r.familiarity };
+  };
+
+  it('recognises a sound it has heard before and treats a new one as novel', () => {
+    const m = makeMemory();
+    const first = hear(m, 0.5);
+    expect(first.novel).toBe(true);
+    const again = hear(m, 0.5);
+    expect(again.novel).toBe(false);
+    expect(again.index).toBe(first.index);
+    const other = hear(m, 0.05);
+    expect(other.index).not.toBe(first.index);
+  });
+
+  it('a blunt ear lumps together sounds a sharp ear tells apart', () => {
+    // Two calls a third of the frequency range apart: far enough that a sharp
+    // ear files them separately, close enough that a blunt one cannot.
+    const sharp = makeMemory();
+    hear(sharp, 0.5, 1);
+    expect(hear(sharp, 0.85, 1).novel).toBe(true);
+
+    const blunt = makeMemory();
+    hear(blunt, 0.5, 0);
+    expect(hear(blunt, 0.85, 0).novel).toBe(false);
+  });
+
+  it('credits a heard sound with a reward that arrives later, and forgets slowly', () => {
+    const m = makeMemory();
+    recognise(m.proto, 0, m.valence, m.strength, m.trace, 0, 4, call(0.5), 0, 1, 0.3);
+    // Reward twenty ticks after the sound.
+    for (let t = 0; t < 20; t++) {
+      creditTrace(m.valence, m.trace, m.strength, 0, 4, 0, 0.2, 0.99, 0);
     }
+    creditTrace(m.valence, m.trace, m.strength, 0, 4, 1, 0.2, 0.99, 0);
+    expect(m.valence[0]).toBeGreaterThan(0.05);
 
-    const meanings = a.meanings();
-    const ch3 = meanings.find((m) => m.channel === 3)!;
-    const ch5 = meanings.find((m) => m.channel === 5)!;
-    expect(ch3.emitterContext[0].label).toBe('predator near');
-    expect(ch3.emitterContext[0].r).toBeGreaterThan(0.7);
-    expect(ch3.listenerResponse[0].label).toBe('move');
-    // The noise channel must not be credited with meaning.
-    expect(ch5.confidence).toBeLessThan(0.2);
+    // A reward five hundred ticks later gets essentially no credit.
+    const cold = makeMemory();
+    recognise(cold.proto, 0, cold.valence, cold.strength, cold.trace, 0, 4, call(0.5), 0, 1, 0.3);
+    for (let t = 0; t < 500; t++) {
+      creditTrace(cold.valence, cold.trace, cold.strength, 0, 4, 0, 0.2, 0.99, 0);
+    }
+    creditTrace(cold.valence, cold.trace, cold.strength, 0, 4, 1, 0.2, 0.99, 0);
+    expect(Math.abs(cold.valence[0])).toBeLessThan(0.01);
+  });
+
+  it('two organisms with different histories end up disagreeing about the same sound', () => {
+    const lucky = makeMemory();
+    const unlucky = makeMemory();
+    for (let rep = 0; rep < 10; rep++) {
+      recognise(lucky.proto, 0, lucky.valence, lucky.strength, lucky.trace, 0, 4, call(0.5), 0, 1, 0.3);
+      creditTrace(lucky.valence, lucky.trace, lucky.strength, 0, 4, 1, 0.2, 0.99, 0);
+      recognise(unlucky.proto, 0, unlucky.valence, unlucky.strength, unlucky.trace, 0, 4, call(0.5), 0, 1, 0.3);
+      creditTrace(unlucky.valence, unlucky.trace, unlucky.strength, 0, 4, -1, 0.2, 0.99, 0);
+    }
+    expect(lucky.valence[0]).toBeGreaterThan(0.2);
+    expect(unlucky.valence[0]).toBeLessThan(-0.2);
+  });
+});
+
+describe('acoustic analyzer', () => {
+  const makeCall = (pitch: number, duration = 0.3) => {
+    const d = new Float32Array(CALL_DIM);
+    d[Call.Pitch] = pitch;
+    d[Call.Loudness] = 0.6;
+    d[Call.Duration] = duration;
+    return d;
+  };
+
+  it('reports nothing until it has seen enough sounds', () => {
+    const a = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    for (let i = 0; i < 50; i++) {
+      a.observeCall(makeCall(0.5), 0, ctx, 0, i, 1, 1, 100, 100, 4096, -1, false, -1);
+    }
+    expect(a.report().clusters).toHaveLength(0);
+  });
+
+  it('finds two distinct call shapes and does not invent a third', () => {
+    const a = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    const rng = new Rng(71);
+    for (let i = 0; i < 800; i++) {
+      const pitch = i % 2 === 0 ? 0.2 + rng.normal(0, 0.005) : 0.8 + rng.normal(0, 0.005);
+      a.observeCall(makeCall(pitch), 0, ctx, 0, i, 1, 1, 100, 100, 4096, -1, false, -1);
+    }
+    const clusters = a.report().clusters;
+    expect(clusters.length).toBe(2);
+    const pitches = clusters.map((c) => c.centroid[0]).sort((x, y) => x - y);
+    expect(pitches[0]).toBeCloseTo(0.2, 1);
+    expect(pitches[1]).toBeCloseTo(0.8, 1);
+  });
+
+  it('finds a context association that is really there and not one that is not', () => {
+    const a = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    const rng = new Rng(72);
+    for (let i = 0; i < 1200; i++) {
+      const hungry = i % 2 === 0;
+      ctx.fill(0);
+      // Feature 0 is "low energy"; feature 4 is unrelated noise.
+      ctx[0] = hungry ? 0.9 : 0.1;
+      ctx[4] = rng.next();
+      const pitch = hungry ? 0.2 + rng.normal(0, 0.005) : 0.8 + rng.normal(0, 0.005);
+      a.observeCall(makeCall(pitch), 0, ctx, 0, i, 1, 1, 100, 100, 4096, -1, false, -1);
+    }
+    const clusters = a.report().clusters;
+    const lowCall = clusters.find((c) => c.centroid[0] < 0.5)!;
+    expect(lowCall.emitterContext[0].label).toBe('low energy');
+    expect(lowCall.emitterContext[0].d).toBeGreaterThan(1);
+    // The unrelated feature must not be credited.
+    expect(lowCall.emitterContext.some((x) => x.label === 'crowded')).toBe(false);
+  });
+
+  it('reports no association when calls are made regardless of circumstance', () => {
+    const a = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    const rng = new Rng(73);
+    for (let i = 0; i < 1200; i++) {
+      for (let k = 0; k < CALL_CONTEXT_DIM; k++) ctx[k] = rng.next();
+      const pitch = i % 2 === 0 ? 0.2 : 0.8;
+      a.observeCall(makeCall(pitch), 0, ctx, 0, i, 1, 1, 100, 100, 4096, -1, false, -1);
+    }
+    for (const c of a.report().clusters) {
+      expect(c.confidence).toBeLessThan(ASSOCIATION_THRESHOLD * 2);
+    }
+  });
+
+  it('detects order between calls, and reports none when there is none', () => {
+    const ordered = new AcousticAnalyzer();
+    const random = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    const rng = new Rng(74);
+    let prevOrdered = -1;
+    let prevRandom = -1;
+    for (let i = 0; i < 1500; i++) {
+      // Strict alternation: knowing the previous call fixes the next one.
+      const pitchA = i % 2 === 0 ? 0.2 : 0.8;
+      prevOrdered = ordered.observeCall(
+        makeCall(pitchA), 0, ctx, 0, i, 1, 1, 100, 100, 4096, prevOrdered, false, -1,
+      );
+      const pitchB = rng.next() < 0.5 ? 0.2 : 0.8;
+      prevRandom = random.observeCall(
+        makeCall(pitchB), 0, ctx, 0, i, 1, 1, 100, 100, 4096, prevRandom, false, -1,
+      );
+    }
+    expect(ordered.report().sequence.mutualInformation).toBeGreaterThan(0.8);
+    expect(random.report().sequence.mutualInformation).toBeLessThan(0.1);
+  });
+
+  it('measures geographic divergence only when the regions really differ', () => {
+    const split = new AcousticAnalyzer();
+    const mixed = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    const rng = new Rng(75);
+    for (let i = 0; i < 2000; i++) {
+      const west = i % 2 === 0;
+      const x = west ? 200 : 3800;
+      // In the split world each half uses its own call.
+      split.observeCall(
+        makeCall(west ? 0.2 : 0.8), 0, ctx, 0, i, 1, 1, x, 200, 4096, -1, false, -1,
+      );
+      // In the mixed world both halves use both.
+      mixed.observeCall(
+        makeCall(rng.next() < 0.5 ? 0.2 : 0.8), 0, ctx, 0, i, 1, 1, x, 200, 4096, -1, false, -1,
+      );
+    }
+    expect(split.report().dialects.divergence).toBeGreaterThan(0.8);
+    expect(mixed.report().dialects.divergence).toBeLessThan(0.15);
+  });
+
+  it('keeps a recurring shape that fits nothing instead of forcing it into a category', () => {
+    const a = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    // Fourteen well-separated shapes, one per available slot. They vary in
+    // pitch, sweep, noisiness and timbre but all share a short duration and no
+    // tremolo, which leaves those two axes free for the intruder below.
+    const fillers: Float32Array[] = [];
+    for (const pitch of [0.05, 0.5, 0.95]) {
+      for (const sweep of [-0.9, 0.9]) {
+        for (const noisiness of [0, 1]) {
+          for (const timbre of [0, 1]) {
+            const d = makeCall(pitch, 0.2);
+            d[Call.Sweep] = sweep;
+            d[Call.Noisiness] = noisiness;
+            d[Call.Timbre] = timbre;
+            fillers.push(d);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < 4200; i++) {
+      a.observeCall(fillers[i % 14], 0, ctx, 0, i, 1, 1, 100, 100, 4096, -1, false, -1);
+    }
+    expect(a.report().clusters.length).toBe(14);
+
+    // Now something that fits none of them: long and heavily pulsed, on the two
+    // axes every established shape holds constant.
+    const odd = makeCall(0.5, 0.98);
+    odd[Call.Tremolo] = 1;
+    for (let i = 0; i < 60; i++) {
+      a.observeCall(odd, 0, ctx, 0, 4200 + i, 1, 1, 100, 100, 4096, -1, false, -1);
+    }
+    const unknown = a.report().unknown;
+    expect(unknown.length).toBeGreaterThan(0);
+    expect(unknown[0].count).toBeGreaterThanOrEqual(12);
+    // It must not have displaced any of the established shapes.
+    expect(a.report().clusters.length).toBe(14);
+  });
+
+  it('measures a response only for the shape that actually preceded it', () => {
+    const a = new AcousticAnalyzer();
+    const ctx = new Float32Array(CALL_CONTEXT_DIM);
+    const resp = new Float32Array(RESPONSE_DIM);
+    for (let i = 0; i < 900; i++) {
+      a.observeCall(makeCall(i % 2 === 0 ? 0.2 : 0.8), 0, ctx, 0, i, 1, 1, 100, 100, 4096, -1, false, -1);
+    }
+    const clusters = a.report().clusters;
+    const low = clusters.find((c) => c.centroid[0] < 0.5)!;
+    const high = clusters.find((c) => c.centroid[0] > 0.5)!;
+    for (let i = 0; i < 600; i++) {
+      resp.fill(0);
+      resp[Response.Approach] = 0.9;
+      a.observeResponse(low.id, resp);
+      resp.fill(0);
+      resp[Response.Approach] = -0.9;
+      a.observeResponse(high.id, resp);
+    }
+    const after = a.report().clusters;
+    const lowAfter = after.find((c) => c.id === low.id)!;
+    const highAfter = after.find((c) => c.id === high.id)!;
+    expect(lowAfter.listenerResponse[0].label).toBe('approach');
+    expect(lowAfter.listenerResponse[0].d).toBeGreaterThan(0);
+    expect(highAfter.listenerResponse[0].d).toBeLessThan(0);
+  });
+
+  it('distance between calls is symmetric and zero for identical sounds', () => {
+    const a = makeCall(0.4);
+    const b = makeCall(0.7);
+    expect(callDistance(a, 0, a, 0)).toBe(0);
+    expect(callDistance(a, 0, b, 0)).toBeCloseTo(callDistance(b, 0, a, 0), 10);
+    expect(callDistance(a, 0, b, 0)).toBeGreaterThan(0);
   });
 });
 
@@ -288,6 +576,14 @@ function baseMetrics(over: Partial<Parameters<Chronicle['update']>[2]>) {
     carnivory: 0.1,
     signalActivity: 0,
     signalMeaningConfidence: 0,
+    callsPerTick: 0,
+    vocalDiversity: 0,
+    sequenceStructure: 0,
+    turnTaking: 0,
+    vocalConvergence: 0,
+    dialectDivergence: 0,
+    callGenerationSpan: 0,
+    signalCoupling: 0,
     transmissionIndex: 0,
     imitationsPerTick: 0,
     posthumousMemes: 0,

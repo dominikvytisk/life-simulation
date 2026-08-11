@@ -5,7 +5,9 @@ import { forward, hebbianUpdate, BRAIN_STRIDE, INPUT_COUNT, OUTPUT_COUNT, PLASTI
 import { MAX_CONTEXT, MAX_HIDDEN } from './genome/phenotype';
 import { Rng } from './core/rng';
 import { SpeciesRegistry } from './species/speciation';
-import { GENOME_LENGTH } from './genome/loci';
+import { GENOME_LENGTH, Locus } from './genome/loci';
+import { VOICE_DIM, Voice } from './acoustics/sound';
+import { expressInto, makePhenotype } from './genome/phenotype';
 
 /** Small worlds so the suite stays fast; the invariants do not depend on scale. */
 const small = { worldSize: 1024, gridSize: 64, initialPopulation: 250, maxPopulation: 3000 };
@@ -138,12 +140,16 @@ describe('simulation invariants', () => {
 
   it('produces descendants — inheritance actually runs', () => {
     const sim = new Simulation({
-      worldSize: 2048,
-      gridSize: 128,
       // Founder density has to match the default world's, or the test measures
-      // a bottleneck that the real configuration does not have.
-      initialPopulation: 1200,
-      maxPopulation: 4000,
+      // a bottleneck that the real configuration does not have. The absolute
+      // size matters too: at 2048 units this world sits right on the edge of
+      // the generation-0 extinction basin, and whether any lineage gets deep
+      // enough to measure comes down to which seed was picked rather than to
+      // whether inheritance works.
+      worldSize: 2560,
+      gridSize: 160,
+      initialPopulation: 1800,
+      maxPopulation: 5000,
       seed: 2024,
     });
     // Track the deepest lineage seen *during* the run. Checking only the final
@@ -270,6 +276,184 @@ describe('energy economy', () => {
   });
 });
 
+describe('acoustics in a running world', () => {
+  /** First living slot, so a test can operate on a real organism. */
+  function anyAlive(sim: Simulation): number {
+    for (let i = 0; i < sim.pop.count; i++) if (sim.pop.alive[i]) return i;
+    return -1;
+  }
+
+  it('a sound from outside the ecosystem arrives through the ordinary ear', () => {
+    const sim = new Simulation({ ...small, seed: 909 });
+    sim.step();
+    const slot = anyAlive(sim);
+    expect(slot).toBeGreaterThanOrEqual(0);
+
+    // Give this one a wide, sensitive ear so the test is about propagation
+    // rather than about whether a random genome happened to grow good hearing.
+    sim.pop.hearingRange[slot] = 400;
+    sim.pop.auditoryLow[slot] = 0;
+    sim.pop.auditoryHigh[slot] = 1;
+    sim.pop.auditoryResolution[slot] = 1;
+    const x = sim.pop.x[slot];
+    const y = sim.pop.y[slot];
+
+    // Hold the sound for a while, then let it stop: a listener registers a
+    // sound as an event when it *ends*, because until then it is a level on a
+    // meter rather than something that can be compared with anything.
+    const frame = [0.4, 1, 0.1, 0.5, 0, 0];
+    for (let t = 0; t < 6; t++) {
+      sim.emitExternalSound(x, y, frame, 2);
+      sim.step();
+    }
+    for (let t = 0; t < 6; t++) sim.step();
+    expect(sim.pop.alive[slot]).toBe(1);
+    expect(sim.pop.lastHeardTick[slot]).toBeGreaterThan(0);
+    expect(sim.pop.heardExternal[slot]).toBe(1);
+  });
+
+  it('a sound outside an organism\'s hearing band does not reach it', () => {
+    const sim = new Simulation({ ...small, seed: 910 });
+    sim.step();
+    const slot = anyAlive(sim);
+    sim.pop.hearingRange[slot] = 400;
+    // A narrow ear at the very bottom of the range.
+    sim.pop.auditoryLow[slot] = 0;
+    sim.pop.auditoryHigh[slot] = 0.08;
+    const x = sim.pop.x[slot];
+    const y = sim.pop.y[slot];
+
+    // ...and a sound at the very top of it.
+    const frame = [1, 1, 0.1, 0.5, 0, 0];
+    for (let t = 0; t < 10; t++) {
+      sim.emitExternalSound(x, y, frame, 3);
+      sim.step();
+    }
+    expect(sim.pop.heardExternal[slot]).toBe(0);
+  });
+
+  it('a deaf organism hears nothing however loud the world gets', () => {
+    const g = new Float32Array(GENOME_LENGTH).fill(0.5);
+    g[Locus.HearingRange] = 0;
+    expect(expressInto(makePhenotype(), g, 0).hearingRange).toBe(0);
+  });
+
+  it('carrying a vocal apparatus costs upkeep even in silence', () => {
+    const quiet = new Float32Array(GENOME_LENGTH).fill(0.5);
+    quiet[Locus.VocalPower] = 0;
+    quiet[Locus.VocalAgility] = 0;
+    quiet[Locus.AuditoryResolution] = 0;
+    quiet[Locus.SoundMemory] = 0;
+    const loud = Float32Array.from(quiet);
+    loud[Locus.VocalPower] = 1;
+    loud[Locus.VocalAgility] = 1;
+    loud[Locus.AuditoryResolution] = 1;
+    loud[Locus.SoundMemory] = 1;
+    const a = expressInto(makePhenotype(), quiet, 0).upkeep;
+    const b = expressInto(makePhenotype(), loud, 0).upkeep;
+    expect(b).toBeGreaterThan(a);
+  });
+
+  it('making sound costs energy, so the cost knob changes the world', () => {
+    const free = new Simulation({ ...small, seed: 911, vocalCost: 0 });
+    const dear = new Simulation({ ...small, seed: 911, vocalCost: 8 });
+    let freeLoud = 0;
+    let dearLoud = 0;
+    for (let t = 0; t < 400; t++) {
+      free.step();
+      dear.step();
+      if (t % 20 === 0) {
+        freeLoud += free.getStats().broadcastActivity;
+        dearLoud += dear.getStats().broadcastActivity;
+      }
+    }
+    // Expensive sound is not forbidden, it is just expensive — and organisms
+    // that hold their voice open regardless die of it.
+    expect(dearLoud).toBeLessThan(freeLoud);
+  });
+
+  it('every acoustic quantity stays finite and in range', () => {
+    const sim = new Simulation({ ...small, seed: 912 });
+    for (let t = 0; t < 500; t++) sim.step();
+    const p = sim.pop;
+    for (let i = 0; i < p.count; i++) {
+      if (!p.alive[i]) continue;
+      const vo = i * VOICE_DIM;
+      expect(Number.isFinite(p.voice[vo + Voice.Pitch])).toBe(true);
+      expect(p.voice[vo + Voice.Pitch]).toBeGreaterThanOrEqual(0);
+      expect(p.voice[vo + Voice.Pitch]).toBeLessThanOrEqual(1);
+      expect(p.voice[vo + Voice.Loudness]).toBeGreaterThanOrEqual(0);
+      expect(p.voice[vo + Voice.Loudness]).toBeLessThanOrEqual(1);
+      expect(Number.isFinite(p.heardValence[i])).toBe(true);
+      expect(Math.abs(p.heardValence[i])).toBeLessThanOrEqual(1);
+      // A voice may only sit inside the band the body can produce.
+      if (p.voice[vo + Voice.Loudness] > 0) {
+        expect(p.voice[vo + Voice.Pitch]).toBeGreaterThanOrEqual(p.vocalLow[i] - 1e-4);
+        expect(p.voice[vo + Voice.Pitch]).toBeLessThanOrEqual(p.vocalHigh[i] + 1e-4);
+      }
+    }
+  });
+
+  it('sound produced this tick is heard on the next one, by everyone equally', () => {
+    // The double buffer means no organism can hear a call that was made after
+    // it stepped. If it were single-buffered, low slots would hear high slots
+    // one tick late and high slots would hear low slots immediately.
+    const sim = new Simulation({ ...small, seed: 913 });
+    for (let t = 0; t < 50; t++) sim.step();
+    const p = sim.pop;
+    for (let i = 0; i < p.count; i++) {
+      if (!p.alive[i]) continue;
+      const vo = i * VOICE_DIM;
+      // voice is a straight copy of voiceNext taken at the end of the tick.
+      for (let k = 0; k < VOICE_DIM; k++) {
+        expect(p.voice[vo + k]).toBe(p.voiceNext[vo + k]);
+      }
+    }
+  });
+});
+
+describe('the analyser cannot reach the world', () => {
+  /**
+   * The load-bearing claim of the whole communication system: statistics about
+   * sound are computed by an observer that nothing can read back. If a call
+   * shape's identity leaked into behaviour, "no predefined meaning" would be
+   * true only in the sense that the meanings were assigned at runtime instead
+   * of at compile time.
+   *
+   * So: run the same seed twice, and in one of the runs destroy the analyser's
+   * entire state every few ticks. Every cluster id it hands out afterwards is
+   * different. If the worlds still unfold identically, nothing downstream of
+   * the analyser is being consulted.
+   */
+  it('resetting the analyser mid-run changes nothing about the world', () => {
+    const control = new Simulation({ ...small, seed: 4242 });
+    const sabotaged = new Simulation({ ...small, seed: 4242 });
+    for (let t = 0; t < 600; t++) {
+      control.step();
+      sabotaged.step();
+      if (t % 7 === 0) sabotaged.acoustics.reset();
+    }
+    expect(fingerprint(sabotaged)).toBe(fingerprint(control));
+    // And the sabotage really did happen — the two disagree about the report.
+    expect(sabotaged.acoustics.sampleCount).toBeLessThan(control.acoustics.sampleCount);
+  });
+
+  it('the same is true of an analyser fed nothing but garbage', () => {
+    const control = new Simulation({ ...small, seed: 4343 });
+    const noisy = new Simulation({ ...small, seed: 4343 });
+    const junk = new Float32Array(7);
+    const ctx = new Float32Array(8);
+    const rng = new Rng(1);
+    for (let t = 0; t < 400; t++) {
+      control.step();
+      noisy.step();
+      for (let k = 0; k < 7; k++) junk[k] = rng.next();
+      noisy.acoustics.observeCall(junk, 0, ctx, 0, t, 1, 1, 100, 100, 1024, -1, false, -1);
+    }
+    expect(fingerprint(noisy)).toBe(fingerprint(control));
+  });
+});
+
 describe('save and restore', () => {
   it('round-trips into an identical fingerprint', () => {
     const sim = new Simulation({ ...small, seed: 606 });
@@ -282,6 +466,22 @@ describe('save and restore', () => {
     expect(fingerprint(restored)).toBe(before);
     expect(restored.tick).toBe(sim.tick);
     expect(restored.species.species.size).toBe(sim.species.species.size);
+  });
+
+  it('carries the acoustic state, so a restored world does not drift', () => {
+    // A save that dropped echoic buffers, learned sound valences or in-flight
+    // vocalisations would still round-trip a position fingerprint. It only
+    // shows up once the restored world runs: those values feed brain inputs,
+    // so a missing one diverges within a few hundred ticks.
+    const sim = new Simulation({ ...small, seed: 608 });
+    for (let t = 0; t < 400; t++) sim.step();
+    const restored = new Simulation({ ...small, seed: 608 });
+    restored.restore(sim.serialize() as Record<string, any>);
+    for (let t = 0; t < 400; t++) {
+      sim.step();
+      restored.step();
+    }
+    expect(fingerprint(restored)).toBe(fingerprint(sim));
   });
 
   it('a restored world keeps running without corruption', () => {

@@ -4,7 +4,7 @@
  * Layout is a flat Float32Array so a whole population lives in one contiguous
  * buffer with a fixed stride — no per-organism objects, no allocation per tick.
  *
- *   inputs (32) + context (<=4)  ->  hidden (<=12, tanh)  ->  outputs (10) + next context
+ *   inputs + context (<=6)  ->  hidden (<=14, tanh)  ->  outputs + next context
  *
  * The context vector is fed back on the next tick, which is what gives an
  * organism state that persists between decisions: it can be "alarmed", it can
@@ -21,9 +21,7 @@
  * while still allowing an organism to learn within its lifetime.
  */
 import { MAX_CONTEXT, MAX_HIDDEN } from '../genome/phenotype';
-
-/** Number of independent broadcast channels. Meaning is never assigned. */
-export const SIGNAL_CHANNELS = 8;
+import { MAX_ECHOIC } from '../acoustics/sound';
 
 export const Input = {
   Bias: 0,
@@ -67,10 +65,44 @@ export const Input = {
   MemoryWorstDX: 37,
   MemoryWorstDY: 38,
   MemoryLoad: 39,
-  // --- what is being broadcast nearby, per channel ---
-  Heard0: 40,
+
+  // --- hearing: physical properties of whatever is in the air right now ---
+  // Not one of these is a message. They are the same quantities a microphone
+  // would report, degraded by distance, terrain and the listener's own organ.
+  EarLoudness: 40,
+  EarPitch: 41,
+  EarSpread: 42, // pitch spread across audible sources: one voice or a chorus
+  EarNoisiness: 43,
+  EarTimbre: 44,
+  EarSweep: 45,
+  EarTremolo: 46,
+  EarDirX: 47,
+  EarDirY: 48,
+  EarProximity: 49,
+  EarSources: 50,
+  EarOnset: 51, // a new source took over attention on this tick
+  EarDuration: 52, // how long the attended sound has been running
+  NoiseFloor: 53, // ambient level the signal is competing against
+
+  // --- efference copy and timing ---
+  SelfVoicing: 54, // an organism can hear itself, which is what makes copying possible
+  TimeSinceCall: 55,
+  TimeSinceHeard: 56, // how long it has been quiet — the substrate for taking turns
+
+  // --- what this organism's own experience says about the last sound heard ---
+  // Learned in life, from its own reward stream. Not a label, not shared, and
+  // frequently wrong.
+  HeardValence: 57,
+  HeardFamiliarity: 58,
+
+  // --- echoic memory: the last few finished sounds, newest first ---
+  // Three numbers each: pitch, loudness, and the silence that preceded it.
+  // A pair of sounds with a gap between them is a different object from the
+  // same pair reversed, and that is all the support sequence gets.
+  Echo0: 59,
 } as const;
-export const INPUT_COUNT = 40 + SIGNAL_CHANNELS; // 48
+export const ECHO_INPUTS = 3;
+export const INPUT_COUNT = 59 + MAX_ECHOIC * ECHO_INPUTS; // 71
 
 export const Output = {
   Thrust: 0,
@@ -87,22 +119,37 @@ export const Output = {
   /** Deposit into the two persistent pheromone fields. */
   PheromoneA: 9,
   PheromoneB: 10,
-  /** Broadcast channels 0..7 occupy 11..18. */
-  Signal0: 11,
+
+  // --- the vocal apparatus ---
+  // Seven knobs on an organ. Hold the gate open and a sound comes out; the
+  // other six shape it, within whatever the anatomy physically allows. How
+  // long the gate stays open is the duration, and opening and closing it in a
+  // pattern is a sequence. No output means anything.
+  Voice: 11,
+  VoicePitch: 12,
+  VoiceLoudness: 13,
+  VoiceNoise: 14,
+  VoiceTimbre: 15,
+  VoiceSweep: 16,
+  VoiceTremolo: 17,
 } as const;
-export const OUTPUT_COUNT = 11 + SIGNAL_CHANNELS; // 19
+export const OUTPUT_COUNT = 18;
 
 export const INPUT_NAMES: string[] = (() => {
   const a = new Array<string>(INPUT_COUNT);
   for (const [k, v] of Object.entries(Input)) a[v] = k;
-  for (let c = 0; c < SIGNAL_CHANNELS; c++) a[Input.Heard0 + c] = `Heard${c}`;
+  const fields = ['Pitch', 'Loud', 'Gap'];
+  for (let e = 0; e < MAX_ECHOIC; e++) {
+    for (let f = 0; f < ECHO_INPUTS; f++) {
+      a[Input.Echo0 + e * ECHO_INPUTS + f] = `Echo${e}${fields[f]}`;
+    }
+  }
   return a;
 })();
 
 export const OUTPUT_NAMES: string[] = (() => {
   const a = new Array<string>(OUTPUT_COUNT);
   for (const [k, v] of Object.entries(Output)) a[v] = k;
-  for (let c = 0; c < SIGNAL_CHANNELS; c++) a[Output.Signal0 + c] = `Say${c}`;
   return a;
 })();
 

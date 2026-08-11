@@ -6,6 +6,7 @@ dist-ssr
 .bench.mjs
 .sweep.mjs
 .exp.mjs
+.voice.mjs
 .serverpid
 *.log
 .DS_Store

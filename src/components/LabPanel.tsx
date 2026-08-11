@@ -30,6 +30,7 @@ export function LabPanel() {
 
   const [saves, setSaves] = useState<WorldSaveMeta[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [live, setLive] = useState<Partial<SimConfig>>({});
 
   const refreshSaves = () => listWorlds().then(setSaves).catch(() => undefined);
@@ -92,13 +93,30 @@ export function LabPanel() {
     client.save();
   };
 
+  /**
+   * Loading can legitimately fail — a world saved before the vocal apparatus
+   * existed has a different genome length and cannot be resumed. The worker
+   * refuses rather than corrupting it, and the reason is shown here.
+   */
+  const applyLoad = (payload: unknown) =>
+    new Promise<void>((resolve) => {
+      client.on({
+        onLoaded: (error) => {
+          if (error) setLoadError(error);
+          else {
+            setLoadError(null);
+            set({ running: false, events: [], history: null, inspection: null, selectedId: 0 });
+          }
+          resolve();
+        },
+      });
+      client.load(payload);
+    });
+
   const doLoad = async (key: string) => {
     setBusy('loading');
     const payload = await loadWorld(key);
-    if (payload) {
-      client.load(payload);
-      set({ running: false, events: [], history: null, inspection: null, selectedId: 0 });
-    }
+    if (payload) await applyLoad(payload);
     setBusy(null);
   };
 
@@ -106,8 +124,9 @@ export function LabPanel() {
     setBusy('importing');
     try {
       const payload = await importWorld(file);
-      client.load(payload);
-      set({ running: false, events: [], history: null, inspection: null, selectedId: 0 });
+      await applyLoad(payload);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Could not read that file.');
     } finally {
       setBusy(null);
     }
@@ -273,6 +292,11 @@ export function LabPanel() {
             />
           </label>
         </div>
+        {loadError && (
+          <p className="mb-2 border border-danger/40 bg-panel-2 px-2 py-1 text-[9px] leading-snug text-danger">
+            {loadError}
+          </p>
+        )}
         {saves.length === 0 ? (
           <p className="text-[10px] text-ink-dim">nothing saved yet</p>
         ) : (

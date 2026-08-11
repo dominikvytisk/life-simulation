@@ -16,6 +16,8 @@ import { Inspector } from './components/Inspector';
 import { WorldPanel } from './components/WorldPanel';
 import { LabPanel } from './components/LabPanel';
 import { SignalsPanel } from './components/SignalsPanel';
+import { VoicePanel } from './components/VoicePanel';
+import { VoiceSynth } from './audio/synth';
 import { ChroniclePanel } from './components/ChroniclePanel';
 import { ExperimentsPanel } from './components/ExperimentsPanel';
 import { experimentById } from './experiments/presets';
@@ -24,7 +26,8 @@ const TABS: { id: PanelTab; label: string }[] = [
   { id: 'overview', label: 'World' },
   { id: 'charts', label: 'Charts' },
   { id: 'species', label: 'Species' },
-  { id: 'signals', label: 'Signals' },
+  { id: 'voice', label: 'Voice' },
+  { id: 'signals', label: 'Culture' },
   { id: 'chronicle', label: 'History' },
   { id: 'experiments', label: 'Lab' },
   { id: 'museum', label: 'Museum' },
@@ -36,6 +39,7 @@ const TABS: { id: PanelTab; label: string }[] = [
 export function App() {
   const tab = useStore((s) => s.tab);
   const ready = useStore((s) => s.ready);
+  const audioEnabled = useStore((s) => s.audioEnabled);
   const set = useStore((s) => s.set);
 
   // ---- worker wiring ----
@@ -52,8 +56,8 @@ export function App() {
           extinct: d.extinct,
           activeWorldEvents: d.activeEvents,
           culture: d.culture,
-          signals: d.signals,
-          signalSamples: d.signalSamples,
+          acoustics: d.acoustics,
+          firstContact: d.firstContact,
           milestones: d.milestones,
           anomalies: d.anomalies,
           mutationTally: d.mutationTally,
@@ -82,6 +86,7 @@ export function App() {
       tab === 'brain' ||
       tab === 'world' ||
       tab === 'signals' ||
+      tab === 'voice' ||
       tab === 'chronicle';
     const detailTimer = window.setInterval(() => {
       if (needsDetail || useStore.getState().selectedId) client.requestDetail();
@@ -96,6 +101,57 @@ export function App() {
       window.clearInterval(historyTimer);
     };
   }, [tab]);
+
+  // ---- audio ----
+  // Voices are only reported by the worker while something is listening, and
+  // only synthesised after an explicit click: browsers require a gesture to
+  // start an AudioContext, and silently starting one would be rude anyway.
+  useEffect(() => {
+    const client = getClient();
+    const wantsVoices = audioEnabled || tab === 'voice';
+    client.setListenerEnabled(wantsVoices);
+    if (!audioEnabled) return;
+
+    const synth = new VoiceSynth();
+    let disposed = false;
+    let raf = 0;
+    synth
+      .start()
+      .then(() => {
+        if (disposed) {
+          synth.stop();
+          return;
+        }
+        const pump = () => {
+          synth.update(
+            client.latestVoices.map((v) => ({
+              id: v.id,
+              // Pan and attenuate relative to the listening point rather than
+              // to the world origin.
+              x: v.x - client.listenerX,
+              y: v.y - client.listenerY,
+              distance: v.distance,
+              pitch: v.pitch,
+              loudness: v.loudness,
+              noisiness: v.noisiness,
+              timbre: v.timbre,
+              slope: v.slope,
+              tremolo: v.tremolo,
+              external: v.external,
+            })),
+          );
+          raf = requestAnimationFrame(pump);
+        };
+        raf = requestAnimationFrame(pump);
+      })
+      .catch(() => set({ audioEnabled: false }));
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(raf);
+      synth.stop();
+    };
+  }, [audioEnabled, tab, set]);
 
   // ---- keyboard ----
   useEffect(() => {
@@ -151,7 +207,7 @@ export function App() {
               <button
                 key={t.id}
                 onClick={() => set({ tab: t.id })}
-                className={`w-1/5 border-r border-b border-edge/60 px-1 py-1.5 text-[10px] transition-colors ${
+                className={`w-1/4 border-r border-b border-edge/60 px-1 py-1.5 text-[10px] transition-colors ${
                   tab === t.id
                     ? 'bg-accent/10 text-accent'
                     : 'text-ink-dim hover:bg-panel-2 hover:text-ink'
@@ -165,6 +221,7 @@ export function App() {
             {tab === 'overview' && <OverviewPanel />}
             {tab === 'charts' && <ChartsPanel />}
             {tab === 'species' && <SpeciesPanel />}
+            {tab === 'voice' && <VoicePanel />}
             {tab === 'signals' && <SignalsPanel />}
             {tab === 'chronicle' && <ChroniclePanel />}
             {tab === 'experiments' && <ExperimentsPanel />}

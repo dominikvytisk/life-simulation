@@ -48,7 +48,7 @@ import {
   OUTPUT_COUNT,
   Output,
   PLASTIC_STRIDE,
-  SIGNAL_CHANNELS,
+  ECHO_INPUTS,
   W1_OFFSET,
   W2_OFFSET,
   W1_SIZE,
@@ -81,7 +81,33 @@ import {
   type NicheAccumulator,
   type NicheProfile,
 } from './analysis/niches';
-import { CONTEXT_COUNT, RESPONSE_COUNT, SignalAnalyzer } from './analysis/signals';
+import { AcousticAnalyzer } from './analysis/acoustics';
+import {
+  CALL_DIM,
+  Call,
+  MAX_ECHOIC,
+  MAX_PROTOTYPES,
+  MIN_CALL_TICKS,
+  VOICE_DIM,
+  Voice,
+  attenuation,
+  bandResponse,
+  callDistance,
+  durationToNorm,
+} from './acoustics/sound';
+import {
+  DETECTION_FLOOR,
+  ECHOIC_STRIDE,
+  ECHO_GAP,
+  echoOffset,
+  gapToNorm,
+  makePercept,
+  pushEcho,
+  resetPercept,
+  type Percept,
+} from './acoustics/ear';
+import { PROTO_STRIDE, creditTrace, recognise } from './acoustics/association';
+import { CALL_CONTEXT_DIM, RESPONSE_DIM, Response } from './acoustics/context';
 import { CultureAnalyzer, type CultureReport } from './analysis/culture';
 import { Chronicle } from './analysis/chronicle';
 import {
@@ -104,10 +130,44 @@ const HISTORY_INTERVAL = 60;
  */
 const MAX_NEIGHBOR_CANDIDATES = 128;
 const TWO_PI = Math.PI * 2;
-/** Only every Nth organism feeds the signal analyzer, rotating each tick. */
-const SIGNAL_SAMPLE_STRIDE = 47;
+/**
+ * Only every Nth organism contributes a "was anything audible just now"
+ * sample, rotating each tick. This is the denominator the turn-taking measure
+ * is compared against, and it does not need to be exhaustive to be unbiased.
+ */
+const HEARING_SAMPLE_STRIDE = 17;
+/**
+ * How recently an organism must have heard something for its own call to be
+ * counted, by the observer, as possibly a reply. Nothing enforces this window
+ * on the organism — it is a measurement choice, stated so it can be argued with.
+ */
+const REPLY_WINDOW_TICKS = 40;
+/** Brain output above which the vocal apparatus is producing sound. */
+const VOICE_GATE = 0.15;
+/**
+ * Attention is stored as an unsigned key so it fits the population's typed
+ * arrays: 0 is silence, an organism is its slot plus one, and a sound from
+ * outside the ecosystem is its id offset past every possible slot.
+ */
+const EXTERNAL_KEY_BASE = 1 << 24;
+
+/** A sound in the world that no organism made. */
+export interface ExternalSound {
+  id: number;
+  x: number;
+  y: number;
+  /** VOICE_DIM acoustic frame — the same physics as any other sound. */
+  frame: Float32Array;
+  ticksLeft: number;
+}
 /** Soma drift beyond this counts as the organism having invented something. */
 const INNOVATION_THRESHOLD = 12;
+/**
+ * Save format. Version 3 added the vocal and auditory apparatus, which changed
+ * both the genome length and the brain layout — a version 2 world cannot be
+ * resumed into this build, and `restore` refuses rather than corrupting one.
+ */
+export const SAVE_VERSION = 3;
 
 export class Simulation {
   cfg: SimConfig;
@@ -119,7 +179,7 @@ export class Simulation {
   events: EventLog;
   worldEvents: WorldEventSystem;
   history: History;
-  signals = new SignalAnalyzer();
+  acoustics = new AcousticAnalyzer();
   culture = new CultureAnalyzer();
   chronicle = new Chronicle();
   mutationTally: MutationTally = makeMutationTally();
@@ -131,6 +191,7 @@ export class Simulation {
   private deathsThisTick = 0;
   private killsThisTick = 0;
   private sharesThisTick = 0;
+  private callsThisTick = 0;
   // Rolling accumulators over the stats window.
   private birthsWindow = 0;
   private deathsWindow = 0;
@@ -140,14 +201,33 @@ export class Simulation {
   totalBirths = 0;
   totalDeaths = 0;
   totalImitations = 0;
+  totalCalls = 0;
+  private callsWindow = 0;
+
+  /**
+   * First-contact bookkeeping. Two running means of how hard listeners closed
+   * on a sound source: one for sounds a human made, one for sounds an organism
+   * made. Comparing them is the only claim this makes — it is a difference in
+   * observed behaviour, not evidence that anything was understood.
+   */
+  private humanApproach = 0;
+  private humanApproachN = 0;
+  private nativeApproach = 0;
+  private nativeApproachN = 0;
+  private humanSoundCount = 0;
 
   // Scratch — allocated once, reused forever.
   private inputs = new Float32Array(INPUT_COUNT);
   private hidden = new Float32Array(MAX_HIDDEN);
   private outputs = new Float32Array(OUTPUT_COUNT);
-  private heard = new Float32Array(SIGNAL_CHANNELS);
-  private ctxFeatures = new Float32Array(CONTEXT_COUNT);
-  private responseFeatures = new Float32Array(RESPONSE_COUNT);
+  private percept: Percept = makePercept();
+  private loudFrame = new Float32Array(VOICE_DIM);
+  private callDesc = new Float32Array(CALL_DIM);
+  private heardDesc = new Float32Array(CALL_DIM);
+  private responseFeatures = new Float32Array(RESPONSE_DIM);
+  /** Sounds injected from outside the ecosystem, e.g. by a human microphone. */
+  externalSounds: ExternalSound[] = [];
+  private nextExternalId = 1;
   private recall: Recall = makeRecall();
   private candidates = new Int32Array(MAX_NEIGHBOR_CANDIDATES);
   private liveIndex: Int32Array;
@@ -308,6 +388,7 @@ export class Simulation {
     this.deathsThisTick = 0;
     this.killsThisTick = 0;
     this.sharesThisTick = 0;
+    this.callsThisTick = 0;
     this.pendingDeathCount = 0;
 
     this.worldEvents.update(cfg);
@@ -339,9 +420,18 @@ export class Simulation {
       this.stepOrganism(i, waterLevel);
     }
 
+    // Sound produced this tick becomes audible to everyone on the next one, so
+    // the whole population hears the same world rather than a half-updated one.
+    pop.voice.set(pop.voiceNext);
+
+    for (let e = this.externalSounds.length - 1; e >= 0; e--) {
+      if (--this.externalSounds[e].ticksLeft <= 0) this.externalSounds.splice(e, 1);
+    }
+
     this.processDeaths();
 
     this.tick++;
+    this.callsWindow += this.callsThisTick;
     this.birthsWindow += this.birthsThisTick;
     this.deathsWindow += this.deathsThisTick;
     this.killsWindow += this.killsThisTick;
@@ -449,8 +539,27 @@ export class Simulation {
     );
     const cnt = this.spatial.queryInto(px, py, scanRadius, this.candidates);
 
-    const heard = this.heard;
-    heard.fill(0);
+    // ---- what the ear is set up to receive ----
+    // Terrain absorbs sound: undergrowth and water both eat the high end
+    // faster than the low, which is the same reason a forest sounds muffled.
+    const audLow = pop.auditoryLow[i];
+    const audHigh = pop.auditoryHigh[i];
+    const refDist = cfg.soundReferenceDistance;
+    const absorb = cfg.soundAbsorption * (1 + veg * 1.6 + depth * 1.2);
+    const absorbPitch = cfg.soundAbsorptionPitch * (1 + veg * 1.6);
+    const vo = pop.voiceOffset(i);
+    let heardTotal = 0;
+    let heardPitchSum = 0;
+    let heardPitchSqSum = 0;
+    let loudest = 0;
+    let loudestSlot = -1;
+    let loudestExternal = -1;
+    let loudestExternalId = 0;
+    let loudestD = 0;
+    let loudestDX = 0;
+    let loudestDY = 0;
+    let audibleSources = 0;
+
     let nearest = -1;
     let nearestScore = Infinity;
     let nearestD2 = 0;
@@ -460,7 +569,6 @@ export class Simulation {
     let alignX = 0;
     let alignY = 0;
     let relatednessSum = 0;
-    let heardWeight = 0;
     const acuity = pop.visionAcuity[i];
     const vision2 = vision * vision;
     const hearing2 = hearing * hearing;
@@ -472,15 +580,34 @@ export class Simulation {
       const dy = pop.y[j] - py;
       const d2 = dx * dx + dy * dy;
 
-      // Hearing is a separate channel from sight with its own range, so an
-      // organism can be heard without being seen — which is what makes an
-      // audible signal worth anything different from just looking.
-      if (d2 <= hearing2 && d2 > 0) {
-        const w = 1 - Math.sqrt(d2) / (hearing + 1e-3);
-        const eo = pop.emittedOffset(j);
-        const gain = pop.signalGain[j] * w;
-        for (let c = 0; c < SIGNAL_CHANNELS; c++) heard[c] += pop.emitted[eo + c] * gain;
-        heardWeight += w;
+      // Hearing is a separate sense from sight with its own range, so a thing
+      // can be heard without being seen — which is the whole reason a sound is
+      // worth anything different from just looking.
+      if (d2 <= hearing2) {
+        const jvo = j * VOICE_DIM;
+        const lj = pop.voice[jvo + Voice.Loudness];
+        if (lj > 0.002) {
+          const d = Math.sqrt(d2);
+          const pj = pop.voice[jvo + Voice.Pitch];
+          const amp =
+            lj *
+            attenuation(d, pj, refDist, absorb, absorbPitch) *
+            bandResponse(pj, audLow, audHigh);
+          if (amp > DETECTION_FLOOR) {
+            heardTotal += amp;
+            heardPitchSum += amp * pj;
+            heardPitchSqSum += amp * pj * pj;
+            audibleSources++;
+            if (amp > loudest) {
+              loudest = amp;
+              loudestSlot = j;
+              loudestExternal = -1;
+              loudestD = d;
+              loudestDX = dx;
+              loudestDY = dy;
+            }
+          }
+        }
       }
 
       if (d2 > vision2) continue;
@@ -506,11 +633,176 @@ export class Simulation {
       }
     }
 
-    if (heardWeight > 0) {
-      const inv = sens / heardWeight;
-      for (let c = 0; c < SIGNAL_CHANNELS; c++) {
-        heard[c] = Math.min(1, heard[c] * inv);
-        inputs[Input.Heard0 + c] = heard[c];
+    // Sounds from outside the ecosystem obey exactly the same physics. There
+    // is no separate path for them, and nothing marks them as special.
+    for (let e = 0; e < this.externalSounds.length; e++) {
+      const src = this.externalSounds[e];
+      const lj = src.frame[Voice.Loudness];
+      if (lj <= 0.002) continue;
+      const dx = src.x - px;
+      const dy = src.y - py;
+      const d2e = dx * dx + dy * dy;
+      if (d2e > hearing2) continue;
+      const d = Math.sqrt(d2e);
+      const pj = src.frame[Voice.Pitch];
+      const amp =
+        lj * attenuation(d, pj, refDist, absorb, absorbPitch) * bandResponse(pj, audLow, audHigh);
+      if (amp <= DETECTION_FLOOR) continue;
+      heardTotal += amp;
+      heardPitchSum += amp * pj;
+      heardPitchSqSum += amp * pj * pj;
+      audibleSources++;
+      if (amp > loudest) {
+        loudest = amp;
+        loudestSlot = -1;
+        loudestExternal = e;
+        // Attention is tracked by the source's stable id, not its position in
+        // the array: the array shuffles as sources expire, and keying off the
+        // index would make a single held sound look like a stream of new ones.
+        loudestExternalId = src.id;
+        loudestD = d;
+        loudestDX = dx;
+        loudestDY = dy;
+      }
+    }
+
+    // ---- turn the acoustic mix into a percept ----
+    const percept = this.percept;
+    resetPercept(percept);
+    const selfLoud = pop.voice[vo + Voice.Loudness];
+    // An organism cannot hear well while it is shouting, and a rainy world is
+    // a loud one. Both raise the level a signal has to beat to be made out.
+    const noiseFloor =
+      cfg.ambientNoiseFloor +
+      this.worldEvents.acousticNoise +
+      veg * 0.05 +
+      depth * 0.08 +
+      selfLoud * cfg.selfMaskingFactor;
+    percept.noiseFloor = noiseFloor;
+    percept.total = heardTotal;
+    percept.sources = audibleSources;
+
+    let attendKey = 0;
+    if (loudest > DETECTION_FLOOR) {
+      // Masking is frequency-selective, as it is in any real ear: a chorus
+      // sitting well away in pitch from the sound being listened to interferes
+      // far less than one sitting on top of it. This is the single piece of
+      // physics that makes it worth calling in a register nobody else uses —
+      // and it is offered as physics, not as an instruction to differentiate.
+      const rest = heardTotal - loudest;
+      let competing = noiseFloor;
+      if (rest > 1e-6) {
+        const attendedPitch = loudest > 0 ? (loudestExternal >= 0
+          ? this.externalSounds[loudestExternal].frame[Voice.Pitch]
+          : pop.voice[loudestSlot * VOICE_DIM + Voice.Pitch]) : 0;
+        const restMeanPitch = (heardPitchSum - loudest * attendedPitch) / rest;
+        const gap = (attendedPitch - restMeanPitch) / 0.22;
+        const overlap = Math.exp(-gap * gap);
+        competing += rest * (0.18 + 0.82 * overlap);
+      }
+      const snr = loudest / (competing + 1e-5);
+      if (snr > 0.55) {
+        const frame = this.loudFrame;
+        if (loudestExternal >= 0) frame.set(this.externalSounds[loudestExternal].frame);
+        else frame.set(pop.voice.subarray(loudestSlot * VOICE_DIM, loudestSlot * VOICE_DIM + VOICE_DIM));
+
+        // Two identical sounds are not perceived identically. How badly they
+        // blur depends on how far above the racket they are and on how good
+        // this particular ear is, both of which are physical facts about the
+        // situation rather than a fudge factor.
+        const res = pop.auditoryResolution[i];
+        const sigma = cfg.auditoryJitter / ((1 + snr) * (0.25 + res * 0.75));
+        percept.pitch = clamp(frame[Voice.Pitch] + this.rng.normal(0, sigma), 0, 1);
+        percept.noisiness = clamp(frame[Voice.Noisiness] + (this.rng.next() * 2 - 1) * sigma, 0, 1);
+        percept.timbre = clamp(frame[Voice.Timbre] + (this.rng.next() * 2 - 1) * sigma, 0, 1);
+        percept.slope = clamp(frame[Voice.Slope] + (this.rng.next() * 2 - 1) * sigma, -1, 1);
+        percept.tremolo = clamp(frame[Voice.Tremolo] + (this.rng.next() * 2 - 1) * sigma, 0, 1);
+        percept.loudest = loudest;
+        percept.proximity = Math.min(1, loudest * 8);
+
+        // Directional hearing degrades with the same blur.
+        const bearing = Math.atan2(loudestDY, loudestDX) + (this.rng.next() * 2 - 1) * sigma * 2;
+        const bx = Math.cos(bearing);
+        const by = Math.sin(bearing);
+        percept.dirX = bx * cosH + by * sinH;
+        percept.dirY = -bx * sinH + by * cosH;
+        percept.srcX = px + bx * loudestD;
+        percept.srcY = py + by * loudestD;
+        percept.slot = loudestSlot;
+        attendKey =
+          loudestExternal >= 0 ? EXTERNAL_KEY_BASE + loudestExternalId : loudestSlot + 1;
+      }
+    }
+    if (heardTotal > 1e-6 && audibleSources > 1) {
+      const mean = heardPitchSum / heardTotal;
+      const variance = Math.max(0, heardPitchSqSum / heardTotal - mean * mean);
+      percept.spread = Math.sqrt(variance);
+    }
+
+    // ---- attention, and the end of a heard sound ----
+    // A sound ends, from the listener's point of view, when it stops being the
+    // thing being listened to. That is when it becomes an object that can be
+    // remembered, compared with earlier ones, and associated with what happens
+    // next; while it is still going it is just a level on a meter.
+    const prevAttend = pop.attendSource[i];
+    let onset = 0;
+    if (attendKey !== prevAttend) {
+      if (prevAttend !== 0) this.finalizeHeard(i);
+      pop.attendSource[i] = attendKey;
+      if (attendKey !== 0) {
+        onset = 1;
+        pop.attendStartPitch[i] = percept.pitch;
+        pop.attendTicks[i] = 0;
+        pop.attendSum.fill(0, vo, vo + VOICE_DIM);
+        pop.heardExternal[i] = attendKey >= EXTERNAL_KEY_BASE ? 1 : 0;
+      }
+    }
+    if (attendKey !== 0) {
+      pop.attendSum[vo + Voice.Pitch] += percept.pitch;
+      pop.attendSum[vo + Voice.Loudness] += percept.loudest;
+      pop.attendSum[vo + Voice.Noisiness] += percept.noisiness;
+      pop.attendSum[vo + Voice.Timbre] += percept.timbre;
+      pop.attendSum[vo + Voice.Slope] += percept.slope;
+      pop.attendSum[vo + Voice.Tremolo] += percept.tremolo;
+      pop.attendTicks[i]++;
+      pop.attendSrcX[i] = percept.srcX;
+      pop.attendSrcY[i] = percept.srcY;
+    }
+
+    // ---- auditory inputs ----
+    inputs[Input.EarLoudness] = Math.min(1, heardTotal * 4);
+    inputs[Input.EarPitch] = attendKey !== 0 ? percept.pitch * 2 - 1 : 0;
+    inputs[Input.EarSpread] = Math.min(1, percept.spread * 4);
+    inputs[Input.EarNoisiness] = attendKey !== 0 ? percept.noisiness : 0;
+    inputs[Input.EarTimbre] = attendKey !== 0 ? percept.timbre : 0;
+    inputs[Input.EarSweep] = percept.slope;
+    inputs[Input.EarTremolo] = percept.tremolo;
+    inputs[Input.EarDirX] = percept.dirX;
+    inputs[Input.EarDirY] = percept.dirY;
+    inputs[Input.EarProximity] = percept.proximity * 2 - 1;
+    inputs[Input.EarSources] = Math.min(1, audibleSources / 6);
+    inputs[Input.EarOnset] = onset;
+    inputs[Input.EarDuration] = durationToNorm(pop.attendTicks[i]);
+    inputs[Input.NoiseFloor] = Math.min(1, noiseFloor * 3);
+    inputs[Input.SelfVoicing] = Math.min(1, selfLoud);
+    inputs[Input.TimeSinceCall] = gapToNorm(this.tick - pop.lastCallTick[i]);
+    inputs[Input.TimeSinceHeard] = gapToNorm(this.tick - pop.lastHeardTick[i]);
+    inputs[Input.HeardValence] = pop.heardValence[i];
+    inputs[Input.HeardFamiliarity] = pop.heardFamiliarity[i];
+
+    // Echoic memory. An organism whose genome does not pay for depth simply
+    // gets zeros here: the sounds still arrived, it just cannot hold them.
+    const echoDepth = pop.echoicDepth[i];
+    if (echoDepth > 0) {
+      const eBase = pop.echoicOffset(i);
+      const eHead = pop.echoHead[i];
+      for (let e = 0; e < MAX_ECHOIC; e++) {
+        const eo = echoOffset(eBase, eHead, e, echoDepth);
+        if (eo < 0) break;
+        const b = Input.Echo0 + e * ECHO_INPUTS;
+        inputs[b] = pop.echoic[eo + Call.Pitch] * 2 - 1;
+        inputs[b + 1] = pop.echoic[eo + Call.Loudness];
+        inputs[b + 2] = pop.echoic[eo + ECHO_GAP];
       }
     }
 
@@ -717,22 +1009,69 @@ export class Simulation {
       }
     }
 
-    // ---- broadcasting ----
+    // ---- vocalising ----
+    // Seven outputs drive an organ. Nothing about this block knows or cares
+    // what comes out; it only enforces what the anatomy can physically do and
+    // charges for the energy it takes.
     const sg = pop.signalGain[i];
-    const eo = pop.emittedOffset(i);
-    let signalTotal = 0;
-    for (let c = 0; c < SIGNAL_CHANNELS; c++) {
-      const v = Math.max(0, out[Output.Signal0 + c]);
-      pop.emitted[eo + c] = v;
-      signalTotal += v;
-    }
-    this.obsSignal[i] = signalTotal;
-    // Broadcasting is metabolically real, otherwise everything screams
-    // constantly and the channel carries no information.
-    if (signalTotal > 0.05) {
-      energyDelta -= signalTotal * sg * cfg.signalCost;
+    const vnext = pop.voiceNext;
+    let voiceLoud = 0;
+    if (out[Output.Voice] > VOICE_GATE) {
+      const bandLow = pop.vocalLow[i];
+      const bandHigh = pop.vocalHigh[i];
+      const wanted = bandLow + (out[Output.VoicePitch] * 0.5 + 0.5) * (bandHigh - bandLow);
+      // Pitch cannot jump: a tract has inertia, and how fast it can move is
+      // what separates a lineage that can chirp from one that can only drone.
+      const slew = pop.vocalSlew[i];
+      const previous = pop.callTicks[i] > 0 ? pop.voice[vo + Voice.Pitch] : wanted;
+      let pitch = wanted;
+      if (wanted > previous + slew) pitch = previous + slew;
+      else if (wanted < previous - slew) pitch = previous - slew;
+
+      voiceLoud = pop.vocalPower[i] * (0.15 + 0.85 * Math.max(0, out[Output.VoiceLoudness]));
+      const agility = pop.vocalAgility[i];
+      const noisiness = clamp(
+        pop.noiseCenter[i] + out[Output.VoiceNoise] * pop.noiseSpan[i],
+        0,
+        1,
+      );
+      const timbre = clamp(
+        pop.timbreCenter[i] + out[Output.VoiceTimbre] * pop.timbreSpan[i],
+        0,
+        1,
+      );
+      const sweep = out[Output.VoiceSweep] * (0.08 + 0.92 * agility);
+      const tremolo = Math.max(0, out[Output.VoiceTremolo]) * agility;
+
+      vnext[vo + Voice.Pitch] = pitch;
+      vnext[vo + Voice.Loudness] = voiceLoud;
+      vnext[vo + Voice.Noisiness] = noisiness;
+      vnext[vo + Voice.Timbre] = timbre;
+      vnext[vo + Voice.Slope] = sweep;
+      vnext[vo + Voice.Tremolo] = tremolo;
+
+      if (pop.callTicks[i] === 0) {
+        pop.callStartPitch[i] = pitch;
+        pop.callStartTick[i] = this.tick;
+      }
+      pop.callSum[vo + Voice.Pitch] += pitch;
+      pop.callSum[vo + Voice.Loudness] += voiceLoud;
+      pop.callSum[vo + Voice.Noisiness] += noisiness;
+      pop.callSum[vo + Voice.Timbre] += timbre;
+      pop.callSum[vo + Voice.Slope] += sweep;
+      pop.callSum[vo + Voice.Tremolo] += tremolo;
+      pop.callTicks[i]++;
+
+      // Loud is expensive and high is expensive, so the call that carries
+      // furthest is also the one that costs most and gives away the most about
+      // where its maker is. Every benefit has to be paid for out of this.
+      energyDelta -= cfg.vocalCost * voiceLoud * voiceLoud * (0.55 + 0.9 * pitch);
       flags |= SnapshotFlag.Signalling;
+    } else {
+      vnext.fill(0, vo, vo + VOICE_DIM);
+      if (pop.callTicks[i] > 0) this.finalizeCall(i);
     }
+    this.obsSignal[i] = voiceLoud;
 
     // Persistent pheromone fields are a separate modality from broadcasting:
     // they stay behind after the organism leaves, which is what makes trails
@@ -846,19 +1185,19 @@ export class Simulation {
     const netGain = energyDelta / (maxE * 0.02 + 1);
     pop.reward[i] = pop.reward[i] * 0.9 + netGain * 0.1;
     pop.pain[i] *= 0.92;
+    // Reward is the change in wellbeing, not a designer-supplied score: energy
+    // gained minus pain felt. What it means to "do well" is left to the energy
+    // economy, and it is the same signal for every kind of learning here.
+    const learnSignal = clamp(pop.reward[i] * 3 - pop.pain[i], -1, 1);
     const plasticity = pop.plasticity[i];
     if (plasticity > 0) {
-      // Reward is the change in wellbeing, not a designer-supplied score:
-      // energy gained minus pain felt. What it means to "do well" is left to
-      // the energy economy.
-      const signal = clamp(pop.reward[i] * 3 - pop.pain[i], -1, 1);
       const drift = hebbianUpdate(
         pop.plastic,
         pop.plasticOffset(i),
         this.hidden,
         out,
         hiddenSize,
-        signal,
+        learnSignal,
         plasticity,
       );
       // An organism that has substantially reshaped its own behaviour through
@@ -870,6 +1209,26 @@ export class Simulation {
         pop.memeTag[i] = pop.id[i];
         this.culture.noteMemeBirth(pop.id[i], this.tick, pop.id[i]);
       }
+    }
+
+    // Whatever this organism has been hearing gets credited with whatever has
+    // just happened to it, in proportion to how recently it heard it. This is
+    // the only place a sound acquires any value at all, and the value is
+    // private to this one animal: two organisms that heard the same call after
+    // different outcomes will disagree about it permanently.
+    const protoSlots = pop.soundPrototypes[i];
+    if (protoSlots > 0) {
+      creditTrace(
+        pop.soundValence,
+        pop.soundTrace,
+        pop.soundStrength,
+        pop.soundSlotOffset(i),
+        protoSlots,
+        learnSignal,
+        cfg.auditoryLearningRate,
+        cfg.auditoryTraceDecay,
+        cfg.auditoryForgetRate,
+      );
     }
 
     // ---- memory encoding ----
@@ -893,33 +1252,72 @@ export class Simulation {
 
     this.obsNeighbours[i] = density;
 
-    // ---- telemetry sample for signal semantics ----
-    if ((i + this.tick) % SIGNAL_SAMPLE_STRIDE === 0) {
-      const c = this.ctxFeatures;
-      c[0] = 1 - energyFrac;
-      c[1] = 1 - pop.health[i];
-      c[2] =
+    // ---- observation ----
+    // Everything below this point is the field notebook. It records what was
+    // going on and what organisms did; it never feeds anything back.
+
+    // The circumstances of a call in progress, refreshed each tick so the
+    // finished utterance carries the situation it was made in.
+    if (pop.callTicks[i] > 0) {
+      const c = pop.callContext;
+      const co = pop.callContextOffset(i);
+      c[co] = 1 - energyFrac;
+      c[co + 1] = 1 - pop.health[i];
+      c[co + 2] =
         nearest >= 0
           ? Math.max(0, pop.radius[nearest] / pop.radius[i] - 1) *
             pop.meatEfficiency[nearest] *
             Math.max(0, 1 - Math.sqrt(nearestD2) / (vision + 1e-3))
           : 0;
-      c[3] = Math.min(1, veg * 2.5 + world.carrion[ci] * 0.05);
-      c[4] = Math.min(1, density / 12);
-      c[5] = nearestRelatedness;
-      c[6] = readyToMate;
-      c[7] = attacked;
+      c[co + 3] = Math.min(1, veg * 2.5 + world.carrion[ci] * 0.05);
+      c[co + 4] = Math.min(1, density / 12);
+      c[co + 5] = nearestRelatedness;
+      c[co + 6] = readyToMate;
+      c[co + 7] = attacked;
+    }
+
+    // What a listener did in the window after a sound finished. `approach` is
+    // measured from where the organism actually went, not from any output —
+    // there is no "approach the sound" action to read.
+    if (pop.heardClusterTicks[i] > 0) {
+      pop.heardClusterTicks[i]--;
+      const hdx = pop.x[i] - pop.heardSrcX[i];
+      const hdy = pop.y[i] - pop.heardSrcY[i];
+      const hd = Math.sqrt(hdx * hdx + hdy * hdy);
+      const closing = clamp(
+        (pop.heardDistance[i] - hd) / (pop.maxSpeed[i] * dt + 1e-3),
+        -1,
+        1,
+      );
+      pop.heardDistance[i] = hd;
 
       const r = this.responseFeatures;
-      r[0] = Math.abs(out[Output.Thrust]);
-      r[1] = Math.abs(out[Output.Turn]);
-      r[2] = Math.max(0, out[Output.Eat]);
-      r[3] = Math.max(0, out[Output.Attack]);
-      r[4] = Math.max(0, out[Output.Mate]);
-      r[5] = Math.max(0, out[Output.Sprint]);
-      r[6] = signalTotal / SIGNAL_CHANNELS;
+      r[Response.Approach] = closing;
+      r[Response.Speed] = Math.min(1, actualSpeed / (pop.maxSpeed[i] + 1e-3));
+      r[Response.Turn] = Math.abs(out[Output.Turn]);
+      r[Response.Eat] = Math.max(0, out[Output.Eat]);
+      r[Response.Attack] = attacked;
+      r[Response.Mate] = readyToMate;
+      r[Response.Answer] = voiceLoud > 0 ? 1 : 0;
+      r[Response.FallSilent] = voiceLoud > 0 ? 0 : 1;
+      this.acoustics.observeResponse(pop.heardCluster[i], r);
 
-      this.signals.observe(pop.emitted, eo, c, heard, r);
+      if (pop.heardExternal[i]) {
+        this.humanApproach += closing;
+        this.humanApproachN++;
+      } else {
+        this.nativeApproach += closing;
+        this.nativeApproachN++;
+      }
+    }
+
+    // How often an organism has recently heard anything at all. This is the
+    // denominator the turn-taking measure is compared against: without it,
+    // "calls follow calls" would just be measuring how noisy the world is.
+    if ((i + this.tick) % HEARING_SAMPLE_STRIDE === 0) {
+      this.acoustics.observeHearingOpportunity(
+        pop.lastHeardTick[i] > 0 && this.tick - pop.lastHeardTick[i] < REPLY_WINDOW_TICKS,
+      );
     }
 
     // ---- death ----
@@ -929,6 +1327,259 @@ export class Simulation {
     }
 
     this.writeSnapshotEntry(i, flags);
+  }
+
+  // ------------------------------------------------------- acoustic events
+
+  /**
+   * A vocalisation has ended. Summarise it and hand it to the observer.
+   *
+   * The descriptor built here is the *source* one — real loudness, real
+   * duration — because that is what an observer with a microphone at the
+   * animal's mouth would record. What listeners perceived is a separate and
+   * usually different thing, which is the point.
+   */
+  private finalizeCall(i: number): void {
+    const pop = this.pop;
+    const ticks = pop.callTicks[i];
+    const co = pop.voiceOffset(i);
+    pop.callTicks[i] = 0;
+    if (ticks < MIN_CALL_TICKS) {
+      pop.callSum.fill(0, co, co + VOICE_DIM);
+      return;
+    }
+
+    const inv = 1 / ticks;
+    const desc = this.callDesc;
+    const meanPitch = pop.callSum[co + Voice.Pitch] * inv;
+    desc[Call.Pitch] = meanPitch;
+    // For a roughly linear glide, mean = (start + end) / 2, so this recovers
+    // the total excursion without keeping a second running value for it.
+    desc[Call.Sweep] = clamp(2 * (meanPitch - pop.callStartPitch[i]), -1, 1);
+    desc[Call.Loudness] = pop.callSum[co + Voice.Loudness] * inv;
+    desc[Call.Noisiness] = pop.callSum[co + Voice.Noisiness] * inv;
+    desc[Call.Timbre] = pop.callSum[co + Voice.Timbre] * inv;
+    desc[Call.Tremolo] = pop.callSum[co + Voice.Tremolo] * inv;
+    desc[Call.Duration] = durationToNorm(ticks);
+    pop.callSum.fill(0, co, co + VOICE_DIM);
+    pop.lastCallTick[i] = this.tick;
+    this.callsThisTick++;
+    this.totalCalls++;
+
+    // Was this call made shortly after hearing one, and if so how much does it
+    // resemble what it followed? Both are questions about timing and acoustics
+    // that an outside observer can answer; neither implies a reply.
+    const heardRecently =
+      pop.lastHeardTick[i] > 0 && this.tick - pop.lastHeardTick[i] < REPLY_WINDOW_TICKS;
+    let heardDist = -1;
+    if (heardRecently) {
+      const eo = echoOffset(pop.echoicOffset(i), pop.echoHead[i], 0, MAX_ECHOIC);
+      if (eo >= 0) heardDist = callDistance(pop.echoic, eo, desc, 0);
+    }
+
+    pop.lastEmittedCluster[i] = this.acoustics.observeCall(
+      desc,
+      0,
+      pop.callContext,
+      pop.callContextOffset(i),
+      this.tick,
+      pop.generation[i],
+      pop.speciesId[i],
+      pop.x[i],
+      pop.y[i],
+      this.world.size,
+      pop.lastEmittedCluster[i],
+      heardRecently,
+      heardDist,
+    );
+  }
+
+  /**
+   * The sound this organism was listening to has ended. Turn it into an object
+   * it can hold: push it into the echoic buffer, look it up in whatever it has
+   * learned about sounds, and start the window in which the observer will
+   * attribute its behaviour to having heard it.
+   */
+  private finalizeHeard(i: number): void {
+    const pop = this.pop;
+    const cfg = this.cfg;
+    const ticks = pop.attendTicks[i];
+    const ao = pop.voiceOffset(i);
+    pop.attendTicks[i] = 0;
+    if (ticks < MIN_CALL_TICKS) {
+      pop.attendSum.fill(0, ao, ao + VOICE_DIM);
+      return;
+    }
+
+    const inv = 1 / ticks;
+    const desc = this.heardDesc;
+    const meanPitch = pop.attendSum[ao + Voice.Pitch] * inv;
+    desc[Call.Pitch] = meanPitch;
+    desc[Call.Sweep] = clamp(2 * (meanPitch - pop.attendStartPitch[i]), -1, 1);
+    // Loudness here is loudness *at the ear*, which is mostly a fact about
+    // distance rather than about the sound. It is kept because that is what the
+    // animal experienced; the observer discounts it when matching shapes.
+    desc[Call.Loudness] = Math.min(1, pop.attendSum[ao + Voice.Loudness] * inv * 5);
+    desc[Call.Noisiness] = pop.attendSum[ao + Voice.Noisiness] * inv;
+    desc[Call.Timbre] = pop.attendSum[ao + Voice.Timbre] * inv;
+    desc[Call.Tremolo] = pop.attendSum[ao + Voice.Tremolo] * inv;
+    desc[Call.Duration] = durationToNorm(ticks);
+    pop.attendSum.fill(0, ao, ao + VOICE_DIM);
+
+    const gap = pop.lastHeardTick[i] > 0 ? this.tick - pop.lastHeardTick[i] : 999;
+    pop.echoHead[i] = pushEcho(pop.echoic, pop.echoicOffset(i), pop.echoHead[i], desc, 0, gap);
+    pop.lastHeardTick[i] = this.tick;
+
+    const match = recognise(
+      pop.soundProto,
+      pop.protoOffset(i),
+      pop.soundValence,
+      pop.soundStrength,
+      pop.soundTrace,
+      pop.soundSlotOffset(i),
+      pop.soundPrototypes[i],
+      desc,
+      0,
+      pop.auditoryResolution[i],
+      cfg.auditoryLearningRate,
+    );
+    pop.heardValence[i] = match.valence;
+    pop.heardFamiliarity[i] = match.familiarity;
+
+    // --- observer bookkeeping from here down ---
+    pop.heardCluster[i] = this.acoustics.classify(desc, 0);
+    pop.heardClusterTicks[i] = Math.min(255, cfg.responseWindowTicks);
+    pop.heardSrcX[i] = pop.attendSrcX[i];
+    pop.heardSrcY[i] = pop.attendSrcY[i];
+    const dx = pop.x[i] - pop.heardSrcX[i];
+    const dy = pop.y[i] - pop.heardSrcY[i];
+    pop.heardDistance[i] = Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Put a sound into the world that no organism made. It propagates and is
+   * perceived by exactly the same code as any other sound, and carries no mark
+   * of where it came from.
+   */
+  emitExternalSound(x: number, y: number, frame: ArrayLike<number>, ticks = 3): void {
+    const f = new Float32Array(VOICE_DIM);
+    for (let i = 0; i < VOICE_DIM && i < frame.length; i++) f[i] = frame[i];
+    // A source already in flight at the same place is continued rather than
+    // duplicated, so a held human note is one sound and not a stack of them.
+    for (const src of this.externalSounds) {
+      if (Math.abs(src.x - x) < 1 && Math.abs(src.y - y) < 1) {
+        src.frame.set(f);
+        src.ticksLeft = ticks;
+        return;
+      }
+    }
+    if (this.externalSounds.length >= 4) this.externalSounds.shift();
+    this.externalSounds.push({ id: this.nextExternalId++, x, y, frame: f, ticksLeft: ticks });
+    this.humanSoundCount++;
+  }
+
+  /**
+   * How differently listeners have moved after a sound from outside the
+   * ecosystem, compared with a sound from inside it. A difference here is a
+   * difference in behaviour and nothing more: it does not show that anything
+   * was understood, only that the two kinds of sound are being treated
+   * differently.
+   */
+  firstContact(): {
+    sounds: number;
+    humanApproach: number;
+    nativeApproach: number;
+    difference: number;
+    samples: number;
+  } {
+    const h = this.humanApproachN > 0 ? this.humanApproach / this.humanApproachN : 0;
+    const n = this.nativeApproachN > 0 ? this.nativeApproach / this.nativeApproachN : 0;
+    return {
+      sounds: this.humanSoundCount,
+      humanApproach: h,
+      nativeApproach: n,
+      difference: this.humanApproachN > 20 && this.nativeApproachN > 20 ? h - n : 0,
+      samples: this.humanApproachN,
+    };
+  }
+
+  /**
+   * The loudest voices near a point, for the audio synthesiser and the
+   * spectrogram. Only a handful are ever rendered: the simulation carries
+   * thousands of sounds as feature vectors and turns almost none of them into
+   * actual audio.
+   */
+  audibleVoices(
+    x: number,
+    y: number,
+    radius: number,
+    limit = 12,
+  ): {
+    id: number;
+    speciesId: number;
+    hue: number;
+    x: number;
+    y: number;
+    distance: number;
+    pitch: number;
+    loudness: number;
+    noisiness: number;
+    timbre: number;
+    slope: number;
+    tremolo: number;
+    external: boolean;
+  }[] {
+    const pop = this.pop;
+    const out: ReturnType<Simulation['audibleVoices']> = [];
+    const r2 = radius * radius;
+    for (let i = 0; i < pop.count; i++) {
+      if (!pop.alive[i]) continue;
+      const vo = i * VOICE_DIM;
+      const loud = pop.voice[vo + Voice.Loudness];
+      if (loud <= 0.01) continue;
+      const dx = pop.x[i] - x;
+      const dy = pop.y[i] - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r2) continue;
+      out.push({
+        id: pop.id[i],
+        speciesId: pop.speciesId[i],
+        hue: pop.hue[i],
+        x: pop.x[i],
+        y: pop.y[i],
+        distance: Math.sqrt(d2),
+        pitch: pop.voice[vo + Voice.Pitch],
+        loudness: loud,
+        noisiness: pop.voice[vo + Voice.Noisiness],
+        timbre: pop.voice[vo + Voice.Timbre],
+        slope: pop.voice[vo + Voice.Slope],
+        tremolo: pop.voice[vo + Voice.Tremolo],
+        external: false,
+      });
+    }
+    for (const src of this.externalSounds) {
+      const dx = src.x - x;
+      const dy = src.y - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r2 || src.frame[Voice.Loudness] <= 0.01) continue;
+      out.push({
+        id: -src.id,
+        speciesId: 0,
+        hue: 0,
+        x: src.x,
+        y: src.y,
+        distance: Math.sqrt(d2),
+        pitch: src.frame[Voice.Pitch],
+        loudness: src.frame[Voice.Loudness],
+        noisiness: src.frame[Voice.Noisiness],
+        timbre: src.frame[Voice.Timbre],
+        slope: src.frame[Voice.Slope],
+        tremolo: src.frame[Voice.Tremolo],
+        external: true,
+      });
+    }
+    out.sort((a, b) => b.loudness / (1 + b.distance) - a.loudness / (1 + a.distance));
+    return out.slice(0, limit);
   }
 
   // ---------------------------------------------------------- reproduction
@@ -1278,9 +1929,8 @@ export class Simulation {
 
     this.culture.update(pop, this.spatial, this.rng, this.tick, wt, this.liveIndex, this.liveCount);
     const cultureReport = this.culture.current();
-    const meanings = this.signals.meanings();
-    let bestMeaning = 0;
-    for (const m of meanings) if (m.confidence > bestMeaning) bestMeaning = m.confidence;
+    const acoustic = this.acoustics.report();
+    const bestMeaning = acoustic.strongestAssociation;
 
     const livingSpecies = this.countLivingSpecies();
     const lost = this.lastSpeciesCount > 0 ? Math.max(0, this.lastSpeciesCount - livingSpecies) / this.lastSpeciesCount : 0;
@@ -1315,6 +1965,16 @@ export class Simulation {
       avgSocialLearning: social * inv,
       avgGroupSize: groupSize * inv,
       broadcastActivity: broadcast,
+      callsPerTick: this.callsWindow / wt,
+      vocalDiversity: acoustic.diversity,
+      vocalPrecision: acoustic.precision,
+      signalClusters: acoustic.clusters.length,
+      sequenceStructure: acoustic.sequence.mutualInformation,
+      turnTaking: acoustic.turnTaking.alternation,
+      vocalConvergence: acoustic.turnTaking.convergence,
+      dialectDivergence: acoustic.dialects.divergence,
+      callGenerationSpan: acoustic.generationSpan,
+      signalCoupling: acoustic.strongestCoupling,
       transmissionIndex: cultureReport.transmissionIndex,
       distinctMemes: cultureReport.distinctMemes,
       posthumousMemes: cultureReport.posthumousMemes,
@@ -1342,6 +2002,14 @@ export class Simulation {
       carnivory: this.stats.carnivory,
       signalActivity: broadcast,
       signalMeaningConfidence: bestMeaning,
+      callsPerTick: this.stats.callsPerTick,
+      vocalDiversity: acoustic.diversity,
+      sequenceStructure: acoustic.sequence.mutualInformation,
+      turnTaking: acoustic.turnTaking.alternation,
+      vocalConvergence: acoustic.turnTaking.convergence,
+      dialectDivergence: acoustic.dialects.divergence,
+      callGenerationSpan: acoustic.generationSpan,
+      signalCoupling: acoustic.strongestCoupling,
       transmissionIndex: cultureReport.transmissionIndex,
       imitationsPerTick: cultureReport.imitationsPerTick,
       posthumousMemes: cultureReport.posthumousMemes,
@@ -1358,6 +2026,7 @@ export class Simulation {
     this.deathsWindow = 0;
     this.killsWindow = 0;
     this.sharesWindow = 0;
+    this.callsWindow = 0;
     this.windowTicks = 0;
   }
 
@@ -1446,6 +2115,9 @@ export class Simulation {
       avgMemory: s.avgMemorySlots,
       groupSize: s.avgGroupSize,
       broadcast: s.broadcastActivity,
+      calls: s.callsPerTick,
+      vocalDiversity: s.vocalDiversity,
+      dialects: s.dialectDivergence,
       imitation: s.imitationsPerTick,
       transmission: s.transmissionIndex,
       sharing: s.sharesPerTick,
@@ -1682,7 +2354,15 @@ export class Simulation {
         pop.kinTag.subarray(pop.kinTagOffset(slot), pop.kinTagOffset(slot) + KIN_TAG_LENGTH),
       ),
       memories,
-      emitted: Array.from(pop.emitted.subarray(pop.emittedOffset(slot), pop.emittedOffset(slot) + SIGNAL_CHANNELS)),
+      voice: Array.from(pop.voice.subarray(pop.voiceOffset(slot), pop.voiceOffset(slot) + VOICE_DIM)),
+      calling: pop.callTicks[slot] > 0,
+      callTicks: pop.callTicks[slot],
+      ticksSinceCall: this.tick - pop.lastCallTick[slot],
+      ticksSinceHeard: pop.lastHeardTick[slot] > 0 ? this.tick - pop.lastHeardTick[slot] : -1,
+      heardValence: pop.heardValence[slot],
+      heardFamiliarity: pop.heardFamiliarity[slot],
+      echoic: echoicSnapshot(pop, slot),
+      soundMemory: soundMemorySnapshot(pop, slot),
       phenotype: {
         radius: pop.radius[slot],
         mass: pop.mass[slot],
@@ -1695,6 +2375,16 @@ export class Simulation {
         visionAcuity: pop.visionAcuity[slot],
         smellRange: pop.smellRange[slot],
         hearingRange: pop.hearingRange[slot],
+        vocalLow: pop.vocalLow[slot],
+        vocalHigh: pop.vocalHigh[slot],
+        vocalPower: pop.vocalPower[slot],
+        vocalAgility: pop.vocalAgility[slot],
+        vocalSlew: pop.vocalSlew[slot],
+        auditoryLow: pop.auditoryLow[slot],
+        auditoryHigh: pop.auditoryHigh[slot],
+        auditoryResolution: pop.auditoryResolution[slot],
+        echoicDepth: pop.echoicDepth[slot],
+        soundPrototypes: pop.soundPrototypes[slot],
         memorySlots: pop.memorySlots[slot],
         memoryDecay: pop.memoryDecay[slot],
         socialLearningRate: pop.socialLearningRate[slot],
@@ -1777,14 +2467,22 @@ export class Simulation {
     const pop = this.pop;
     const n = pop.count;
     return {
-      version: 2,
+      version: SAVE_VERSION,
       tick: this.tick,
       cfg: this.cfg,
       rngState: this.rng.saveState(),
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
       totalImitations: this.totalImitations,
+      totalCalls: this.totalCalls,
       nextId: pop.nextId,
+      externalSounds: this.externalSounds.map((e) => ({
+        id: e.id,
+        x: e.x,
+        y: e.y,
+        frame: Array.from(e.frame),
+        ticksLeft: e.ticksLeft,
+      })),
       count: n,
       // The free list is state, not scratch: slot reuse order feeds back into
       // iteration order and therefore into the RNG stream. A fork that rebuilt
@@ -1827,7 +2525,36 @@ export class Simulation {
         brain: pop.brain.slice(0, n * BRAIN_STRIDE),
         plastic: pop.plastic.slice(0, n * PLASTIC_STRIDE),
         context: pop.context.slice(0, n * MAX_CONTEXT),
-        emitted: pop.emitted.slice(0, n * SIGNAL_CHANNELS),
+        voice: pop.voice.slice(0, n * VOICE_DIM),
+        voiceNext: pop.voiceNext.slice(0, n * VOICE_DIM),
+        callSum: pop.callSum.slice(0, n * VOICE_DIM),
+        callTicks: pop.callTicks.slice(0, n),
+        callStartPitch: pop.callStartPitch.slice(0, n),
+        callStartTick: pop.callStartTick.slice(0, n),
+        lastCallTick: pop.lastCallTick.slice(0, n),
+        callContext: pop.callContext.slice(0, n * CALL_CONTEXT_DIM),
+        attendSource: pop.attendSource.slice(0, n),
+        attendSum: pop.attendSum.slice(0, n * VOICE_DIM),
+        attendTicks: pop.attendTicks.slice(0, n),
+        attendStartPitch: pop.attendStartPitch.slice(0, n),
+        attendSrcX: pop.attendSrcX.slice(0, n),
+        attendSrcY: pop.attendSrcY.slice(0, n),
+        lastHeardTick: pop.lastHeardTick.slice(0, n),
+        heardValence: pop.heardValence.slice(0, n),
+        heardFamiliarity: pop.heardFamiliarity.slice(0, n),
+        echoic: pop.echoic.slice(0, n * ECHOIC_STRIDE),
+        echoHead: pop.echoHead.slice(0, n),
+        soundProto: pop.soundProto.slice(0, n * PROTO_STRIDE),
+        soundValence: pop.soundValence.slice(0, n * MAX_PROTOTYPES),
+        soundStrength: pop.soundStrength.slice(0, n * MAX_PROTOTYPES),
+        soundTrace: pop.soundTrace.slice(0, n * MAX_PROTOTYPES),
+        heardCluster: pop.heardCluster.slice(0, n),
+        heardClusterTicks: pop.heardClusterTicks.slice(0, n),
+        heardDistance: pop.heardDistance.slice(0, n),
+        heardSrcX: pop.heardSrcX.slice(0, n),
+        heardSrcY: pop.heardSrcY.slice(0, n),
+        heardExternal: pop.heardExternal.slice(0, n),
+        lastEmittedCluster: pop.lastEmittedCluster.slice(0, n),
         kinTag: pop.kinTag.slice(0, n * KIN_TAG_LENGTH),
         memX: pop.memX.slice(0, n * MAX_MEMORY),
         memY: pop.memY.slice(0, n * MAX_MEMORY),
@@ -1859,6 +2586,18 @@ export class Simulation {
    * state has to be stored.
    */
   restore(data: Record<string, any>): void {
+    // The acoustic upgrade changed the genome length and the brain layout, so
+    // an older payload does not describe this world at all. Loading it anyway
+    // would write a 32-locus genome into a 41-locus stride and silently
+    // scramble every organism, which is far worse than refusing.
+    const version = (data.version as number) ?? 1;
+    if (version !== SAVE_VERSION) {
+      throw new Error(
+        `This world was saved by an incompatible version (save v${version}, this build reads v${SAVE_VERSION}). ` +
+          'The genome and brain layouts changed when the vocal apparatus was added, so the save cannot be resumed.',
+      );
+    }
+
     const pop = this.pop;
     const n = data.count as number;
 
@@ -1867,6 +2606,14 @@ export class Simulation {
     this.totalBirths = data.totalBirths ?? 0;
     this.totalDeaths = data.totalDeaths ?? 0;
     this.totalImitations = data.totalImitations ?? 0;
+    this.totalCalls = data.totalCalls ?? 0;
+    this.externalSounds = ((data.externalSounds as any[]) ?? []).map((e) => ({
+      id: e.id,
+      x: e.x,
+      y: e.y,
+      frame: Float32Array.from(e.frame),
+      ticksLeft: e.ticksLeft,
+    }));
 
     const p = data.pop;
     const copy = (dst: { set(a: ArrayLike<number>, o?: number): void }, src?: ArrayLike<number>) => {
@@ -1909,7 +2656,36 @@ export class Simulation {
     copy(pop.brain, p.brain);
     copy(pop.plastic, p.plastic);
     copy(pop.context, p.context);
-    copy(pop.emitted, p.emitted);
+    copy(pop.voice, p.voice);
+    copy(pop.voiceNext, p.voiceNext);
+    copy(pop.callSum, p.callSum);
+    copy(pop.callTicks, p.callTicks);
+    copy(pop.callStartPitch, p.callStartPitch);
+    copy(pop.callStartTick, p.callStartTick);
+    copy(pop.lastCallTick, p.lastCallTick);
+    copy(pop.callContext, p.callContext);
+    copy(pop.attendSource, p.attendSource);
+    copy(pop.attendSum, p.attendSum);
+    copy(pop.attendTicks, p.attendTicks);
+    copy(pop.attendStartPitch, p.attendStartPitch);
+    copy(pop.attendSrcX, p.attendSrcX);
+    copy(pop.attendSrcY, p.attendSrcY);
+    copy(pop.lastHeardTick, p.lastHeardTick);
+    copy(pop.heardValence, p.heardValence);
+    copy(pop.heardFamiliarity, p.heardFamiliarity);
+    copy(pop.echoic, p.echoic);
+    copy(pop.echoHead, p.echoHead);
+    copy(pop.soundProto, p.soundProto);
+    copy(pop.soundValence, p.soundValence);
+    copy(pop.soundStrength, p.soundStrength);
+    copy(pop.soundTrace, p.soundTrace);
+    copy(pop.heardCluster, p.heardCluster);
+    copy(pop.heardClusterTicks, p.heardClusterTicks);
+    copy(pop.heardDistance, p.heardDistance);
+    copy(pop.heardSrcX, p.heardSrcX);
+    copy(pop.heardSrcY, p.heardSrcY);
+    copy(pop.heardExternal, p.heardExternal);
+    copy(pop.lastEmittedCluster, p.lastEmittedCluster);
     copy(pop.kinTag, p.kinTag);
     copy(pop.memX, p.memX);
     copy(pop.memY, p.memY);
@@ -1961,7 +2737,7 @@ export class Simulation {
 
     this.events.clear();
     for (const e of data.events as any[]) this.events.push(e);
-    this.signals.reset();
+    this.acoustics.reset();
     this.culture.reset();
     this.chronicle.reset();
 
@@ -1977,6 +2753,63 @@ export class Simulation {
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+/** The sounds an organism has most recently heard, newest first. */
+function echoicSnapshot(
+  pop: Population,
+  slot: number,
+): { pitch: number; loudness: number; noisiness: number; duration: number; gap: number }[] {
+  const out: { pitch: number; loudness: number; noisiness: number; duration: number; gap: number }[] =
+    [];
+  const base = pop.echoicOffset(slot);
+  const head = pop.echoHead[slot];
+  for (let e = 0; e < MAX_ECHOIC; e++) {
+    const o = echoOffset(base, head, e, MAX_ECHOIC);
+    if (o < 0) break;
+    if (pop.echoic[o + Call.Duration] <= 0 && pop.echoic[o + Call.Pitch] <= 0) continue;
+    out.push({
+      pitch: pop.echoic[o + Call.Pitch],
+      loudness: pop.echoic[o + Call.Loudness],
+      noisiness: pop.echoic[o + Call.Noisiness],
+      duration: pop.echoic[o + Call.Duration],
+      gap: pop.echoic[o + ECHO_GAP],
+    });
+  }
+  return out;
+}
+
+/**
+ * What this organism has personally worked out about sounds. Each entry is a
+ * shape it keeps hearing plus what tended to happen next, learned from its own
+ * reward stream and shared with nobody.
+ */
+function soundMemorySnapshot(
+  pop: Population,
+  slot: number,
+): { pitch: number; duration: number; noisiness: number; valence: number; strength: number }[] {
+  const out: {
+    pitch: number;
+    duration: number;
+    noisiness: number;
+    valence: number;
+    strength: number;
+  }[] = [];
+  const po = pop.protoOffset(slot);
+  const so = pop.soundSlotOffset(slot);
+  for (let k = 0; k < pop.soundPrototypes[slot]; k++) {
+    if (pop.soundStrength[so + k] <= 0.001) continue;
+    const o = po + k * CALL_DIM;
+    out.push({
+      pitch: pop.soundProto[o + Call.Pitch],
+      duration: pop.soundProto[o + Call.Duration],
+      noisiness: pop.soundProto[o + Call.Noisiness],
+      valence: pop.soundValence[so + k],
+      strength: pop.soundStrength[so + k],
+    });
+  }
+  out.sort((a, b) => b.strength - a.strength);
+  return out;
 }
 
 function emptyStats(): Stats {
@@ -2009,6 +2842,16 @@ function emptyStats(): Stats {
     avgSocialLearning: 0,
     avgGroupSize: 0,
     broadcastActivity: 0,
+    callsPerTick: 0,
+    vocalDiversity: 0,
+    vocalPrecision: 0,
+    signalClusters: 0,
+    sequenceStructure: 0,
+    turnTaking: 0,
+    vocalConvergence: 0,
+    dialectDivergence: 0,
+    callGenerationSpan: 0,
+    signalCoupling: 0,
     transmissionIndex: 0,
     distinctMemes: 0,
     posthumousMemes: 0,

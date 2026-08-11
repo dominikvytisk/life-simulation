@@ -36,8 +36,33 @@ export interface SimConfig {
   signalDecay: number;
   signalDiffusion: number;
   signalDeposit: number;
-  /** Energy burned per unit of signal emitted, on any channel. */
+  /** Energy burned per unit of pheromone deposited. */
   signalCost: number;
+
+  // ---- Acoustics ----
+  /** Energy per tick of vocalising at full loudness, before the pitch term. */
+  vocalCost: number;
+  /** Distance at which geometric spreading has halved a sound. */
+  soundReferenceDistance: number;
+  /** Absorption per world unit, frequency-independent part. */
+  soundAbsorption: number;
+  /** Extra absorption per world unit at the very top of the audible band. */
+  soundAbsorptionPitch: number;
+  /** Acoustic noise present in a still world with no weather. */
+  ambientNoiseFloor: number;
+  /** How much an organism's own voice drowns out its hearing. */
+  selfMaskingFactor: number;
+  /** Perceptual scatter at a signal-to-noise ratio of one, with a perfect ear. */
+  auditoryJitter: number;
+  /** How fast the auditory associative memory follows what it hears. */
+  auditoryLearningRate: number;
+  /** How fast a heard sound stops being credited for what happens next. */
+  auditoryTraceDecay: number;
+  /** Per-tick fading of a sound pattern nobody keeps hearing. */
+  auditoryForgetRate: number;
+  /** Ticks after hearing a sound during which a listener's behaviour is
+   * attributed to it by the analyser. Observation only. */
+  responseWindowTicks: number;
 
   // ---- Social mechanisms ----
   /** Fraction of max energy transferable in one sharing action. */
@@ -127,10 +152,38 @@ export const DEFAULT_CONFIG: SimConfig = {
   signalDecay: 0.035,
   signalDiffusion: 0.09,
   signalDeposit: 0.35,
-  // Per unit of signal, summed over all eight channels. Enough that constant
-  // screaming is not free — which is what lets a channel carry information —
-  // but small next to the cost of moving.
+  // Per unit of pheromone. Enough that marking is not free, but small next to
+  // the cost of moving.
   signalCost: 0.012,
+
+  // Vocalising has to cost something real or everything screams constantly and
+  // sound carries no information at all. At full loudness this is roughly a
+  // third of a typical organism's basal upkeep, per tick of calling — a brief
+  // call is cheap, a continuous one is a serious drain, and a loud low call
+  // that carries across the map is the most expensive thing an organism can
+  // say. Nothing here rewards calling; it is pure cost, and any benefit has to
+  // come from what other organisms do about it.
+  vocalCost: 0.055,
+  soundReferenceDistance: 55,
+  // Tuned against hearingRange (up to 320u): at the frequency-independent rate
+  // alone a sound is down to ~30% at 200 units, and the pitch term roughly
+  // triples that loss at the top of the band. Low calls therefore travel, high
+  // calls stay local, and that trade-off is not something an organism can opt
+  // out of.
+  soundAbsorption: 0.006,
+  soundAbsorptionPitch: 0.013,
+  ambientNoiseFloor: 0.02,
+  // An organism cannot hear well while shouting. This is the attention cost of
+  // communication, and it is the reason a duet has to alternate rather than
+  // overlap if either party is going to hear the other.
+  selfMaskingFactor: 0.55,
+  auditoryJitter: 0.09,
+  auditoryLearningRate: 0.09,
+  // Roughly a 70-tick half-life: long enough that "heard it, went over, found
+  // food" is learnable, short enough that most coincidences average out.
+  auditoryTraceDecay: 0.99,
+  auditoryForgetRate: 0.00012,
+  responseWindowTicks: 24,
 
   // Fraction of max energy moved per tick of sustained sharing. This has to sit
   // in the same order of magnitude as upkeep: at 6% a random brain that happens

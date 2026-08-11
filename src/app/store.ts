@@ -7,11 +7,12 @@ import { create } from 'zustand';
 import type { OverlayMode } from '../sim/world/painter';
 import type { SeriesKey } from '../analytics/history';
 import type {
+  AcousticReport,
   AnomalyReport,
   CultureReport,
+  FirstContactReport,
   Milestone,
   OrganismInspection,
-  SignalMeaning,
   SimEventDTO,
   SpeciesSummary,
   Stats,
@@ -26,6 +27,7 @@ export type PanelTab =
   | 'museum'
   | 'brain'
   | 'signals'
+  | 'voice'
   | 'chronicle'
   | 'experiments'
   | 'world'
@@ -46,8 +48,16 @@ interface UIState {
   extinct: SpeciesSummary[];
   activeWorldEvents: { type: string; ticksLeft: number; progress: number }[];
   culture: CultureReport | null;
-  signals: SignalMeaning[];
-  signalSamples: number;
+  acoustics: AcousticReport | null;
+  firstContact: FirstContactReport | null;
+  /** Audio output and microphone input are both opt-in and off by default. */
+  audioEnabled: boolean;
+  micEnabled: boolean;
+  micError: string | null;
+  /** Live acoustic frame from the microphone, for the First Contact display. */
+  micFrame: number[] | null;
+  /** Where a human sound is placed in the world. Null means the view centre. */
+  contactPoint: { x: number; y: number } | null;
   milestones: Milestone[];
   anomalies: AnomalyReport[];
   mutationTally: number[];
@@ -83,8 +93,13 @@ export const useStore = create<UIState>((set) => ({
   extinct: [],
   activeWorldEvents: [],
   culture: null,
-  signals: [],
-  signalSamples: 0,
+  acoustics: null,
+  firstContact: null,
+  audioEnabled: false,
+  micEnabled: false,
+  micError: null,
+  micFrame: null,
+  contactPoint: null,
   milestones: [],
   anomalies: [],
   mutationTally: [],
