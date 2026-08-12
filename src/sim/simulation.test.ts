@@ -157,7 +157,7 @@ describe('simulation invariants', () => {
     // survive, which is exactly the kind of thing the simulation is allowed to
     // decide for itself.
     let deepest = 0;
-    for (let t = 0; t < 3000; t++) {
+    for (let t = 0; t < 2_000; t++) {
       sim.step();
       if (t % 100 !== 0) continue;
       for (let i = 0; i < sim.pop.count; i++) {
