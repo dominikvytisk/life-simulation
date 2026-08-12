@@ -267,4 +267,26 @@ export function randomGenome(g: Float32Array, off: number, rng: Rng): void {
   g[off + Locus.MemoryCapacity] = rng.next() * 0.35;
   g[off + Locus.HearingRange] = rng.next() * 0.5;
   g[off + Locus.SocialLearning] = rng.next() * 0.4;
+  // Founders start cognitively simple for exactly the same reason. Every one of
+  // these costs upkeep from the first tick and pays nothing back until there is
+  // both something worth predicting and a brain whose representation is worth
+  // predicting *with*, neither of which generation 0 has. Handing them out
+  // freely would not produce thinking animals; it would produce a founder
+  // population taxed for organs it cannot use, which dies faster and tells us
+  // nothing.
+  //
+  // The distribution matters more than it looks. Prediction is drawn broadly,
+  // so a fair share of founders can fit a model at all; horizon and budget are
+  // drawn narrowly, so almost every founder has planHorizon 0 and planBudget 0
+  // and therefore never deliberates. Deliberation has to be *found*, and if it
+  // is never worth its cost it will never be found, which is the correct
+  // outcome and one this simulation is allowed to reach.
+  g[off + Locus.PredictionRate] = rng.next() * 0.3;
+  g[off + Locus.ModelDecay] = rng.next() * 0.6;
+  g[off + Locus.MetaRate] = rng.next() * 0.35;
+  g[off + Locus.Curiosity] = rng.next() * 0.3;
+  g[off + Locus.PredictionHorizon] = rng.next() * 0.25;
+  g[off + Locus.PlanningBudget] = rng.next() * 0.25;
+  g[off + Locus.Consolidation] = rng.next() * 0.25;
+  g[off + Locus.ToxinTolerance] = rng.next() * 0.45;
 }

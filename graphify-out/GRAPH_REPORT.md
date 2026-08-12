@@ -1,16 +1,16 @@
-# Graph Report - life  (2026-08-11)
+# Graph Report - life  (2026-08-12)
 
 ## Corpus Check
-- 81 files · ~166,784 words
+- 88 files · ~192,042 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 771 nodes · 1686 edges · 41 communities (31 shown, 10 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 40 edges (avg confidence: 0.86)
+- 788 nodes · 1806 edges · 44 communities (32 shown, 12 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 24 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d3b53d52`
+- Built from commit: `9b537760`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -54,31 +54,35 @@
 - [[_COMMUNITY_Community 36|Community 36]]
 - [[_COMMUNITY_Community 37|Community 37]]
 - [[_COMMUNITY_Community 38|Community 38]]
+- [[_COMMUNITY_Community 39|Community 39]]
 - [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 41|Community 41]]
+- [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Community 43|Community 43]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Simulation` - 59 edges
-2. `useStore` - 34 edges
+1. `Simulation` - 67 edges
+2. `useStore` - 36 edges
 3. `SimConfig` - 33 edges
 4. `SimClient` - 30 edges
-5. `Rng` - 28 edges
-6. `Population` - 25 edges
-7. `AcousticAnalyzer` - 21 edges
-8. `World` - 21 edges
+5. `Rng` - 30 edges
+6. `Population` - 30 edges
+7. `World` - 22 edges
+8. `AcousticAnalyzer` - 21 edges
 9. `compilerOptions` - 18 edges
-10. `pitchToHz()` - 16 edges
+10. `UIState` - 16 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Transmission Index and Meme Persistence` --references--> `MemeRecord`  [INFERRED]
-  README.md → src/sim/analysis/culture.ts
-- `maxPopulation Is a Cap, Not a Target` --rationale_for--> `SimConfig`  [INFERRED]
-  README.md → src/sim/core/config.ts
-- `Speciation and Phylogenetic Tree` --references--> `SpeciesRegistry`  [INFERRED]
-  README.md → src/sim/species/speciation.ts
-- `Learning and Culture Readout` --references--> `Transmission Index and Meme Persistence`  [EXTRACTED]
-  preview.png → README.md
-- `Top Bar Readout (tick, year, pop, species, gen, ticks/s)` --conceptually_related_to--> `Founder Crash Is the Point`  [AMBIGUOUS]
-  preview.png → README.md
+- `Ten-Panel Tab Navigation` --references--> `App()`  [INFERRED]
+  preview.png → src/App.tsx
+- `Live Brain View With Activations` --references--> `INPUT_NAMES`  [INFERRED]
+  preview.png → src/sim/brain/brain.ts
+- `Live Brain View With Activations` --references--> `OUTPUT_NAMES`  [INFERRED]
+  preview.png → src/sim/brain/brain.ts
+- `Determinism` --references--> `fingerprint()`  [EXTRACTED]
+  README.md → src/sim/simulation.test.ts
+- `Tests Gate the Deploy` --rationale_for--> `Determinism`  [EXTRACTED]
+  .github/workflows/deploy.yml → README.md
 
 ## Import Cycles
 - 2-file cycle: `src/gpu/canvasRenderer.ts -> src/gpu/renderer.ts -> src/gpu/canvasRenderer.ts`
@@ -90,43 +94,35 @@
 - **Determinism and Forkability Stack** — readme_determinism, readme_boxmuller_bug, readme_freelist_serialised, readme_forkable_experiments, core_rng [EXTRACTED 1.00]
 - **Inspector Sections That Answer "Why Did It Do That"** — preview_vitals_section, preview_learning_culture_section, preview_memory_section, preview_broadcast_section, preview_live_brain [EXTRACTED 1.00]
 
-## Communities (41 total, 10 thin omitted)
+## Communities (44 total, 12 thin omitted)
 
 ### Community 0 - "Brain and Spatial Core"
 Cohesion: 0.15
-Nodes (17): B1_SIZE, B2_SIZE, BRAIN_INPUT_WIDTH, clampRange(), copyBrain(), copyGenome(), crossoverBrain(), crossoverGenome() (+9 more)
+Nodes (17): bandFromGenes(), PLASTIC_STRIDE, MODEL_FEATURES, expressInto(), lerp(), makePhenotype(), Phenotype, consolidateMemory() (+9 more)
 
 ### Community 1 - "React UI Panels"
 Cohesion: 0.05
-Nodes (62): pitchToHz(), getClient(), PanelTab, useStore, Chart(), Series, ChartsPanel(), ChroniclePanel() (+54 more)
+Nodes (64): pitchToHz(), fmt(), getClient(), useStore, Chart(), Series, ChartsPanel(), ChroniclePanel() (+56 more)
 
 ### Community 2 - "World Events and Experiments"
-Cohesion: 0.08
-Nodes (34): ExperimentProgress, runExperiment(), Results(), ArmResult, compare(), COMPARED_METRICS, ComparedMetric, Comparison (+26 more)
+Cohesion: 0.17
+Nodes (14): ExperimentProgress, runExperiment(), ArmResult, compare(), COMPARED_METRICS, ComparedMetric, Comparison, ExperimentArm (+6 more)
 
 ### Community 3 - "Telemetry Types and History"
-Cohesion: 0.11
-Nodes (41): AcousticReport, AnomalyReport, Milestone, SeriesState, CultureReport, NicheProfile, SERIES_KEYS, SeriesKey (+33 more)
+Cohesion: 0.08
+Nodes (52): AcousticReport, AnomalyReport, Milestone, SeriesState, analyseCognition(), CognitionLedger, CognitionReport, CognitiveAssociation (+44 more)
 
-### Community 4 - "Signal Analysis and Brain View"
-Cohesion: 0.18
-Nodes (11): Top Bar Readout (tick, year, pop, species, gen, ticks/s), Vitals and Life History Readout, carrionEnergyDensity Cancelled Out of the Model, Carrion and the Scavenging Niche, Emergent Predation, Energy economy, Founder Crash Is the Point, Mendelian Kin Markers (+3 more)
-
-### Community 5 - "Niche Inference and RNG"
-Cohesion: 0.14
-Nodes (7): hashString(), Rng, Box-Muller Cache Breaks Fork Determinism, Determinism, fingerprint(), Tests Gate the Deploy, GRAD2
+### Community 6 - "Simulation Core Loop"
+Cohesion: 0.05
+Nodes (14): makeNicheAccumulator(), History, randomizeBrain(), randomKinTags(), geneticDistance(), Recall, report, seed (+6 more)
 
 ### Community 7 - "Rendering Pipeline"
-Cohesion: 0.11
-Nodes (12): SnapshotField, SnapshotFlag, Canvas2DRenderer, Camera, createRenderer(), LifeRenderer, WebGPURenderer, "Morphology Is Generated" Legend (+4 more)
-
-### Community 8 - "Culture and Population Store"
-Cohesion: 0.05
-Nodes (12): CultureAnalyzer, emptyReport(), MemeRecord, somaSimilarity(), SpatialHash, Population, Compute-Shader Offload (Unbuilt), Transmission Index and Meme Persistence (+4 more)
+Cohesion: 0.13
+Nodes (7): SnapshotField, SnapshotFlag, Canvas2DRenderer, Camera, createRenderer(), LifeRenderer, WebGPURenderer
 
 ### Community 9 - "NPM Dependency Manifest"
-Cohesion: 0.06
-Nodes (30): dependencies, react, react-dom, zustand, devDependencies, tailwindcss, @tailwindcss/vite, @types/node (+22 more)
+Cohesion: 0.18
+Nodes (11): devDependencies, tailwindcss, @tailwindcss/vite, @types/node, @types/react, @types/react-dom, typescript, vite (+3 more)
 
 ### Community 11 - "App TypeScript Config"
 Cohesion: 0.10
@@ -134,11 +130,11 @@ Nodes (19): compilerOptions, allowImportingTsExtensions, jsx, lib, module, modul
 
 ### Community 12 - "Speciation and Phylogeny"
 Cohesion: 0.15
-Nodes (7): Speciation and Phylogenetic Tree, romanish(), speciesName(), SpeciesRecord, SpeciesRegistry, SYLLABLES_A, SYLLABLES_B
+Nodes (6): romanish(), speciesName(), SpeciesRecord, SpeciesRegistry, SYLLABLES_A, SYLLABLES_B
 
 ### Community 13 - "Chronicle and Event Log"
-Cohesion: 0.14
-Nodes (6): Chronicle, fmt(), EventKind, EventKindId, EventLog, SimEvent
+Cohesion: 0.13
+Nodes (6): Chronicle, KIND_STYLE, EventKind, EventKindId, EventLog, SimEvent
 
 ### Community 14 - "Node TypeScript Config"
 Cohesion: 0.14
@@ -149,94 +145,104 @@ Cohesion: 0.29
 Nodes (5): port, root, server, TYPES, Repository-Name Base Path
 
 ### Community 16 - "Neighbour Query Scaling"
-Cohesion: 0.07
-Nodes (23): accumulate(), describe(), NicheAccumulator, SimConfig, ActiveForcing, EVENT_NOISE, WorldEventSpec, WorldEventSystem (+15 more)
+Cohesion: 0.20
+Nodes (3): SimConfig, WorldEventSystem, World
 
 ### Community 20 - "Community 20"
 Cohesion: 0.09
-Nodes (15): CONTEXT_FEATURES, RESPONSE_FEATURES, CALL_NAMES, normToDuration(), AcousticAnalyzer, Association, CallCluster, clampEffect() (+7 more)
+Nodes (16): CONTEXT_FEATURES, Response, RESPONSE_FEATURES, CALL_NAMES, normToDuration(), AcousticAnalyzer, Association, CallCluster (+8 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.15
-Nodes (19): Response, ECHO_GAP, echoOffset(), gapToNorm(), makePercept(), Percept, pushEcho(), resetPercept() (+11 more)
+Cohesion: 0.13
+Nodes (20): creditTrace(), Match, matchRadius(), recognise(), result, echoOffset(), attenuation(), AuditoryApparatus (+12 more)
 
 ### Community 22 - "Community 22"
-Cohesion: 0.14
-Nodes (16): creditTrace(), Match, matchRadius(), recognise(), result, attenuation(), AuditoryApparatus, bandResponse() (+8 more)
+Cohesion: 0.19
+Nodes (19): pushReplay(), replayOne(), deliberate(), makePlanResult(), PlanResult, buildFeatures(), learn(), makePredictionError() (+11 more)
 
 ### Community 23 - "Community 23"
-Cohesion: 0.15
-Nodes (14): Voice, MemeState, fastTanh(), forward(), hebbianUpdate(), imitate(), Input, Output (+6 more)
+Cohesion: 0.18
+Nodes (14): ECHO_GAP, gapToNorm(), makePercept(), Percept, pushEcho(), resetPercept(), fastTanh(), forward() (+6 more)
 
 ### Community 24 - "Community 24"
-Cohesion: 0.20
-Nodes (12): bandFromGenes(), randomizeBrain(), DEFAULT_CONFIG, randomGenome(), randomKinTags(), makeGenome(), Locus, expressInto() (+4 more)
+Cohesion: 0.18
+Nodes (16): B1_SIZE, B2_SIZE, BRAIN_INPUT_WIDTH, DEFAULT_CONFIG, clampRange(), copyBrain(), copyGenome(), crossoverBrain() (+8 more)
 
 ### Community 25 - "Community 25"
-Cohesion: 0.13
-Nodes (15): A worked result, Architecture, Current state and what is next, Derived observation, Development tools, Directory map, Emergent behaviour to watch for, Experiments on forks (+7 more)
+Cohesion: 0.07
+Nodes (30): A worked result, Architecture, Communication, Current state and what is next, Delayed consequences, Derived observation, Development tools, Directory map (+22 more)
 
 ### Community 26 - "Community 26"
-Cohesion: 0.22
-Nodes (6): clamp01(), hzToPitch(), clamp(), clamp01(), MicCapture, MicFrame
+Cohesion: 0.23
+Nodes (5): Voice, clamp(), clamp01(), MicCapture, MicFrame
 
 ### Community 27 - "Community 27"
+Cohesion: 0.13
+Nodes (14): DISTANCE_WEIGHTS, Locus, LocusName, makeMutationTally(), MUTATION_CATEGORY_NAMES, MutationCategoryId, MutationTally, WEIGHT_SUM (+6 more)
+
+### Community 28 - "Community 28"
+Cohesion: 0.14
+Nodes (14): armResult, base, comparisons, control, controlResult, fingerprint(), parent, parentPrint (+6 more)
+
+### Community 29 - "Community 29"
+Cohesion: 0.19
+Nodes (9): accumulate(), describe(), NicheAccumulator, Biome, BIOME_NAMES, BiomeId, clamp01(), classifyBiome() (+1 more)
+
+### Community 30 - "Community 30"
 Cohesion: 0.21
 Nodes (4): LiveVoice, makeNoiseBuffer(), VoiceFrame, VoiceSynth
 
-### Community 28 - "Community 28"
-Cohesion: 0.18
-Nodes (10): DISTANCE_WEIGHTS, LOCUS_CATEGORY, LocusName, makeMutationTally(), MutationCategory, MutationCategoryId, MutationTally, WEIGHT_SUM (+2 more)
-
-### Community 29 - "Community 29"
-Cohesion: 0.22
-Nodes (9): LIFE Observatory Screenshot, Eight-Channel Broadcast Bars, Organism Inspector, Learning and Culture Readout, Project Pitch Panel (Left Rail), Procedural Island World View, Eight Meaning-Free Broadcast Channels, Persistent Pheromone Fields (+1 more)
-
-### Community 30 - "Community 30"
-Cohesion: 0.22
-Nodes (9): Communication, Genome, How it works, Kin recognition, Memory, Neural network, Reproduction and speciation, Senses (+1 more)
-
-### Community 31 - "Community 31"
-Cohesion: 0.22
-Nodes (7): Headless Bench and Seed Sweep, seed, sim, totalTicks, windowStart, seedCount, ticks
-
 ### Community 32 - "Community 32"
-Cohesion: 0.33
-Nodes (6): App HTML Entry Point, No Scripted Behaviour Rule, Deliberately Raw Egocentric Senses, World events, GitHub Pages Deploy Workflow, 404.html Deep-Link Fallback
+Cohesion: 0.21
+Nodes (5): CultureAnalyzer, emptyReport(), MemeRecord, MemeState, somaSimilarity()
+
+### Community 33 - "Community 33"
+Cohesion: 0.18
+Nodes (11): scripts, bench, build, dev, experiment, preview, serve:subpath, sweep (+3 more)
 
 ### Community 34 - "Community 34"
+Cohesion: 0.22
+Nodes (7): ActiveForcing, EVENT_NOISE, WORLD_EVENT_INFO, WorldEventSpec, WorldEventType, WorldEventTypeId, Experiment
+
+### Community 35 - "Community 35"
+Cohesion: 0.22
+Nodes (8): dependencies, react, react-dom, zustand, name, private, type, version
+
+### Community 36 - "Community 36"
+Cohesion: 0.32
+Nodes (3): Determinism, fingerprint(), small
+
+### Community 38 - "Community 38"
+Cohesion: 0.25
+Nodes (8): LIFE Observatory Screenshot, Eight-Channel Broadcast Bars, Organism Inspector, Learning and Culture Readout, Project Pitch Panel (Left Rail), Episodic Memory Slots (0/8, empty), Vitals and Life History Readout, Procedural Island World View
+
+### Community 42 - "Community 42"
 Cohesion: 0.47
 Nodes (4): INPUT_NAMES, OUTPUT_NAMES, BrainView(), Live Brain View With Activations
 
-### Community 35 - "Community 35"
-Cohesion: 0.33
-Nodes (5): report, seed, sim, t0, TICKS
-
-## Ambiguous Edges - Review These
-- `Inert Hidden Units as Junk DNA` → `Whole-Neuron Brain Crossover`  [AMBIGUOUS]
-  README.md · relation: conceptually_related_to
-- `Founder Crash Is the Point` → `Top Bar Readout (tick, year, pop, species, gen, ticks/s)`  [AMBIGUOUS]
-  preview.png · relation: conceptually_related_to
+### Community 43 - "Community 43"
+Cohesion: 0.50
+Nodes (4): App HTML Entry Point, GitHub Pages Deploy Workflow, 404.html Deep-Link Fallback, Tests Gate the Deploy
 
 ## Knowledge Gaps
-- **173 isolated node(s):** `PreToolUse`, `allow`, `name`, `private`, `version` (+168 more)
+- **181 isolated node(s):** `PreToolUse`, `allow`, `name`, `private`, `version` (+176 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **10 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What is the exact relationship between `Inert Hidden Units as Junk DNA` and `Whole-Neuron Brain Crossover`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `Founder Crash Is the Point` and `Top Bar Readout (tick, year, pop, species, gen, ticks/s)`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Simulation` connect `Simulation Core Loop` to `Brain and Spatial Core`, `World Events and Experiments`, `Telemetry Types and History`, `Niche Inference and RNG`, `Culture and Population Store`, `Speciation and Phylogeny`, `Chronicle and Event Log`, `Neighbour Query Scaling`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 28`, `Community 31`, `Community 33`, `Community 35`, `Community 36`, `Community 38`, `Community 39`?**
-  _High betweenness centrality (0.100) - this node is a cross-community bridge._
-- **Why does `GitHub Pages Deploy Workflow` connect `Community 32` to `NPM Dependency Manifest`, `Niche Inference and RNG`?**
-  _High betweenness centrality (0.074) - this node is a cross-community bridge._
-- **Why does `SimConfig` connect `Neighbour Query Scaling` to `Brain and Spatial Core`, `React UI Panels`, `World Events and Experiments`, `Telemetry Types and History`, `Simulation Core Loop`, `Sim Client Bridge`, `Community 21`?**
-  _High betweenness centrality (0.070) - this node is a cross-community bridge._
+- **Why does `Simulation` connect `Simulation Core Loop` to `Brain and Spatial Core`, `Community 34`, `Telemetry Types and History`, `Community 36`, `World Events and Experiments`, `Community 39`, `Culture and Population Store`, `Speciation and Phylogeny`, `Chronicle and Event Log`, `Neighbour Query Scaling`, `Community 21`, `Community 22`, `Community 23`, `Community 24`, `Community 27`, `Community 28`, `Community 31`?**
+  _High betweenness centrality (0.106) - this node is a cross-community bridge._
+- **Why does `GitHub Pages Deploy Workflow` connect `Community 43` to `Community 35`?**
+  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+- **Why does `SimConfig` connect `Neighbour Query Scaling` to `React UI Panels`, `World Events and Experiments`, `Telemetry Types and History`, `Community 34`, `Simulation Core Loop`, `Sim Client Bridge`, `Community 23`, `Community 24`, `Community 28`, `Community 29`?**
+  _High betweenness centrality (0.066) - this node is a cross-community bridge._
 - **What connects `PreToolUse`, `allow`, `name` to the rest of the system?**
-  _178 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _181 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `React UI Panels` be split into smaller, more focused modules?**
-  _Cohesion score 0.051515151515151514 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.054455445544554455 - nodes in this community are weakly interconnected._
+- **Should `Telemetry Types and History` be split into smaller, more focused modules?**
+  _Cohesion score 0.07643600180913614 - nodes in this community are weakly interconnected._
+- **Should `Simulation Core Loop` be split into smaller, more focused modules?**
+  _Cohesion score 0.05333333333333334 - nodes in this community are weakly interconnected._

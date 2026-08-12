@@ -36,6 +36,15 @@ export const COMPARED_METRICS = [
   'avgLifespan',
   'maxGeneration',
   'sharesPerTick',
+  // ---- cognition ----
+  'avgPredictionAccuracy',
+  'avgPredictionRate',
+  'avgCuriosity',
+  'avgPlanHorizon',
+  'modellingFraction',
+  'planningFraction',
+  'avgToxinLoad',
+  'socialMemoryFraction',
 ] as const;
 export type ComparedMetric = (typeof COMPARED_METRICS)[number];
 
@@ -178,6 +187,120 @@ export const HYPOTHESES: Hypothesis[] = [
       { id: 'blocked', label: 'Imitation impossible', patch: { imitationRange: 0 } },
     ],
     watch: ['imitationsPerTick', 'transmissionIndex', 'avgBrainSize', 'population'],
+  },
+  // ---------------------------------------------------------------------
+  // The ablation ladder. These are the experiments that decide whether any of
+  // the cognitive machinery is doing anything, and they are the only honest way
+  // to ask: run the same world twice, with one faculty switched off.
+  //
+  // Every one of them can come back inconclusive, and several probably will.
+  // An inconclusive result here is not a failure of the experiment — it is the
+  // finding that the faculty did not pay for itself in this world, which is a
+  // perfectly ordinary thing for a faculty to fail to do.
+  // ---------------------------------------------------------------------
+  {
+    id: 'does-learning-matter',
+    claim: 'Lifetime learning changes evolutionary outcomes at all.',
+    reasoning:
+      'The most basic control there is. If a population with plasticity and auditory association switched off does just as well, then nothing any organism learns in its life is affecting who reproduces, and every result downstream of that is decoration.',
+    arms: [
+      { id: 'control', label: 'Learning on', patch: {} },
+      { id: 'no-learning', label: 'No lifetime learning', patch: { learningEnabled: false } },
+    ],
+    watch: ['population', 'avgLifespan', 'maxGeneration', 'avgBrainSize', 'diversity'],
+  },
+  {
+    id: 'does-the-model-matter',
+    claim: 'Carrying a predictive model of the world pays for its upkeep.',
+    reasoning:
+      'The model costs energy to fit and to carry, and predicts nothing useful until the brain has found a representation worth predicting. If the arm without it does as well or better, prediction is a tax rather than an adaptation in this world.',
+    arms: [
+      { id: 'control', label: 'World model on', patch: {} },
+      { id: 'no-model', label: 'No world model', patch: { worldModelEnabled: false } },
+    ],
+    watch: ['population', 'avgPredictionAccuracy', 'avgLifespan', 'maxGeneration'],
+  },
+  {
+    id: 'does-planning-matter',
+    claim: 'Imagining a few actions before choosing beats acting on instinct.',
+    reasoning:
+      'Deliberation is charged per imagined step and runs on a model that is wrong early in every life. It should only pay where the world is structured enough that a one-second-ahead guess is better than a reflex.',
+    arms: [
+      { id: 'control', label: 'Planning available', patch: {} },
+      { id: 'no-planning', label: 'No deliberation', patch: { planningEnabled: false } },
+    ],
+    watch: ['population', 'avgPlanHorizon', 'planningFraction', 'avgLifespan', 'maxGeneration'],
+  },
+  {
+    id: 'does-curiosity-matter',
+    claim: 'Taking value from learning itself improves survival.',
+    reasoning:
+      'Intrinsic value competes directly with energy for the same learning signal and the same time. An organism that finds things interesting eats less while it does so. Whether that ever repays depends on whether there is anything worth finding out.',
+    arms: [
+      { id: 'control', label: 'Intrinsic value on', patch: {} },
+      { id: 'no-intrinsic', label: 'Extrinsic reward only', patch: { intrinsicEnabled: false } },
+    ],
+    watch: ['population', 'avgCuriosity', 'avgPredictionAccuracy', 'diversity', 'avgLifespan'],
+  },
+  {
+    id: 'volatility-and-learning',
+    claim: 'A world that keeps changing favours faster learning than a stable one.',
+    reasoning:
+      'The rate an organism fits its model at is genetic, and a gene for adapting the rate to recent surprise exists. In a stable world a slow, stable model should win on cost; in a shifting one it should be left holding beliefs that stopped being true.',
+    arms: [
+      { id: 'control', label: 'Default seasons', patch: {} },
+      {
+        id: 'stable',
+        label: 'Almost unchanging',
+        patch: { seasonAmplitude: 0.02, vegetationGrowthRate: 0.022, daysPerYear: 40 },
+      },
+      {
+        id: 'volatile',
+        label: 'Hard, fast seasons',
+        patch: { seasonAmplitude: 0.34, ticksPerDay: 120, daysPerYear: 10 },
+      },
+    ],
+    watch: [
+      'avgPredictionRate',
+      'avgPredictionAccuracy',
+      'avgCuriosity',
+      'population',
+      'avgMemorySlots',
+    ],
+  },
+  {
+    id: 'delayed-consequences',
+    claim: 'A consequence that arrives late selects for memory and prediction.',
+    reasoning:
+      'Toxic growth pays energy now and costs health hundreds of ticks later, and the only cue is a visible property of the plant. A reflex cannot connect the two. If the machinery does anything, removing the delayed cost should relax the pressure on it.',
+    arms: [
+      { id: 'control', label: 'Toxic patches present', patch: {} },
+      { id: 'harmless', label: 'Nothing is poisonous', patch: { toxinPotency: 0 } },
+      { id: 'severe', label: 'Strongly poisonous', patch: { toxinPotency: 1.1, toxinDamage: 0.011 } },
+    ],
+    watch: [
+      'avgMemorySlots',
+      'avgPredictionAccuracy',
+      'avgToxinLoad',
+      'population',
+      'avgPredictionRate',
+    ],
+  },
+  {
+    id: 'knowledge-through-sound',
+    claim: 'Hearing can carry a belief about a place nobody in earshot has visited.',
+    reasoning:
+      'A listener that recognises a sound writes a place-memory at its source from its own learned association. Switching that channel off should cost nothing unless sounds in this world had actually become worth acting on.',
+    arms: [
+      { id: 'control', label: 'Sound can inform', patch: {} },
+      { id: 'no-social', label: 'Sound informs nothing', patch: { socialMemoryEnabled: false } },
+    ],
+    watch: [
+      'socialMemoryFraction',
+      'population',
+      'transmissionIndex',
+      'avgMemorySlots',
+    ],
   },
   {
     id: 'kin-sharing',

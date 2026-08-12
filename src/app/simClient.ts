@@ -13,6 +13,7 @@ import type { SimConfig } from '../sim/core/config';
 import type { OverlayMode } from '../sim/world/painter';
 import type { WorldEventSpec } from '../sim/events/worldEvents';
 import type { FromWorker, ToWorker } from '../workers/protocol';
+import type { CognitionReport, SpeciesCognition } from '../sim/analysis/cognition';
 import type { SeriesKey } from '../analytics/history';
 import type {
   AcousticReport,
@@ -38,6 +39,8 @@ export interface DetailPayload {
   milestones: Milestone[];
   anomalies: AnomalyReport[];
   mutationTally: number[];
+  cognition: CognitionReport;
+  trajectories: SpeciesCognition[];
 }
 
 export interface HistoryPayload {
@@ -156,6 +159,8 @@ export class SimClient {
           milestones: msg.milestones,
           anomalies: msg.anomalies,
           mutationTally: msg.mutationTally,
+          cognition: msg.cognition,
+          trajectories: msg.trajectories,
         });
         break;
       case 'forked':

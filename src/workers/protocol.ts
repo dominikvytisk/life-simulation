@@ -23,6 +23,7 @@ import type {
   Stats,
 } from '../sim/core/types';
 import type { SeriesKey } from '../analytics/history';
+import type { CognitionReport, SpeciesCognition } from '../sim/analysis/cognition';
 
 export type ToWorker =
   | { type: 'init'; config: Partial<SimConfig>; overlay: OverlayMode }
@@ -79,6 +80,9 @@ export type FromWorker =
       milestones: Milestone[];
       anomalies: AnomalyReport[];
       mutationTally: number[];
+      /** Measured cognitive development per species, and what it correlates with. */
+      cognition: CognitionReport;
+      trajectories: SpeciesCognition[];
     }
   | { type: 'history'; ticks: Float64Array; series: Record<SeriesKey, Float32Array> }
   | { type: 'picked'; id: number }

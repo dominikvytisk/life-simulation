@@ -159,6 +159,98 @@ export function Inspector() {
         </div>
       </Section>
 
+      <Section title="Prediction & deliberation">
+        {data.predictionRate <= 0 ? (
+          <p className="text-[10px] leading-snug text-ink-dim">
+            This organism models nothing. It senses, it acts, and it never forms an expectation
+            about what happens next. Carrying a model costs upkeep from birth, so not carrying one
+            is a legitimate strategy — and in most worlds most lineages take it.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <Stat
+                label="prediction accuracy"
+                value={(1 / (1 + data.predictionError)).toFixed(2)}
+                tone={data.modelConfidence > 0.6 ? 'accent' : 'default'}
+                title="1 / (1 + recent surprise). Measured against this organism's own next internal state — not against the world, which it cannot see."
+              />
+              <Stat
+                label="surprise"
+                value={data.predictionError.toFixed(3)}
+                tone={data.predictionError > 0.6 ? 'warn' : 'default'}
+                title="How wrong its last expectation turned out to be. Not the same thing as anything going badly."
+              />
+              <Stat
+                label="reward error"
+                value={data.rewardError.toFixed(3)}
+                title="Being wrong about whether the next stretch would go well, kept separate from being wrong about what it would look like."
+              />
+              <Stat
+                label="learning progress"
+                value={data.learningProgress.toFixed(4)}
+                tone={data.learningProgress > 0 ? 'life' : 'default'}
+                title="Long-run surprise minus recent surprise. Positive means it has been getting better lately. A permanently unpredictable situation gives high surprise and zero progress."
+              />
+              <Stat
+                label="novelty"
+                value={data.novelty.toFixed(2)}
+                title="How little its model has been exposed to the situation it is acting in."
+              />
+              <Stat
+                label="intrinsic drive"
+                value={data.intrinsic.toFixed(3)}
+                tone={data.intrinsic > 0.05 ? 'accent' : 'default'}
+                title="Curiosity x learning progress x novelty. Value taken from learning rather than from anything the world handed over."
+              />
+              <Stat label="model fits" value={data.modelSamples} title="Transitions fitted in this life." />
+              <Stat label="learning rate" value={data.predictionRate.toFixed(3)} />
+              <Stat label="curiosity" value={data.curiosity.toFixed(3)} />
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <Stat
+                label="plan horizon"
+                value={data.planHorizon}
+                unit="steps"
+                tone={data.planHorizon > 0 ? 'accent' : 'default'}
+              />
+              <Stat label="plan budget" value={data.planBudget} unit="options" />
+              <Stat
+                label="plan advantage"
+                value={data.planAdvantage.toFixed(3)}
+                tone={data.planAdvantage > 0.01 ? 'life' : 'default'}
+                title="How much better its model expected the chosen action to go than the one instinct proposed. Zero means deliberating changed nothing."
+              />
+            </div>
+            <p className="mt-2 text-[10px] leading-snug text-ink-dim">
+              {data.planHorizon > 0 && data.planBudget > 0
+                ? `Before acting, this organism imagines ${data.planBudget} variations on what its network proposed and runs each ${data.planHorizon} model step${data.planHorizon > 1 ? 's' : ''} forward, paying energy per imagined step. If its model is wrong, deliberating makes the decision worse.`
+                : 'This organism does not deliberate. Whatever its network produces is what it does.'}
+              {data.consolidations > 0 &&
+                ` It has replayed stored experience ${data.consolidations} time${data.consolidations === 1 ? '' : 's'} while resting.`}
+            </p>
+          </>
+        )}
+      </Section>
+
+      <Section title="Body burden">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat
+            label="toxin load"
+            value={data.toxinLoad.toFixed(3)}
+            tone={data.toxinLoad > 0.3 ? 'danger' : data.toxinLoad > 0.1 ? 'warn' : 'default'}
+            title="Accumulated from eating growth that carried it. Above the harmless threshold it costs health every tick, hundreds of ticks after the meal that caused it."
+          />
+          <Stat label="clearance" value={p.toxinClearance?.toFixed(4) ?? '—'} />
+          <Stat
+            label="vicarious beliefs"
+            value={data.vicariousMemories}
+            tone={data.vicariousMemories > 0 ? 'accent' : 'default'}
+            title="Place memories formed from a sound rather than from experience. Some of them may be wrong."
+          />
+        </div>
+      </Section>
+
       <Section title={`Episodic memory — ${data.memories.length}/${p.memorySlots} slots`}>
         {p.memorySlots === 0 ? (
           <p className="text-[10px] leading-snug text-ink-dim">
@@ -189,8 +281,17 @@ export function Inspector() {
                     {m.valence > 0 ? '+' : ''}
                     {m.valence.toFixed(2)}
                   </span>
+                  {m.social && (
+                    <span
+                      className="text-accent"
+                      title="Never lived. This belief was formed from a sound heard from that direction."
+                    >
+                      heard
+                    </span>
+                  )}
                   <span className="ml-auto tabular-nums text-ink-dim">
                     {dist.toFixed(0)}u away · {(m.strength * 100).toFixed(0)}%
+                    {m.importance > 0.05 && ` · use ${m.importance.toFixed(1)}`}
                   </span>
                 </div>
               );

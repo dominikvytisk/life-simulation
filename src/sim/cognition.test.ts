@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from './simulation';
 import { Rng } from './core/rng';
-import { encodeMemory, recallInto, makeRecall, ENCODE_THRESHOLD } from './memory/memory';
+import {
+  ENCODE_THRESHOLD,
+  MEMORY_CONTEXT_DIM,
+  consolidateMemory,
+  encodeMemory,
+  makeRecall,
+  recallInto,
+  reinforceRecall,
+  type MemoryArrays,
+} from './memory/memory';
 import { MAX_MEMORY, expressInto, makePhenotype } from './genome/phenotype';
 import { AcousticAnalyzer, ASSOCIATION_THRESHOLD } from './analysis/acoustics';
 import { CALL_CONTEXT_DIM, RESPONSE_DIM, Response } from './acoustics/context';
@@ -27,78 +36,90 @@ import { DEFAULT_CONFIG } from './core/config';
 
 const small = { worldSize: 1024, gridSize: 64, initialPopulation: 250, maxPopulation: 3000 };
 
-function makeMem() {
+function makeMem(): MemoryArrays {
   return {
     x: new Float32Array(MAX_MEMORY),
     y: new Float32Array(MAX_MEMORY),
-    v: new Float32Array(MAX_MEMORY),
-    s: new Float32Array(MAX_MEMORY),
+    valence: new Float32Array(MAX_MEMORY),
+    strength: new Float32Array(MAX_MEMORY),
+    importance: new Float32Array(MAX_MEMORY),
+    context: new Float32Array(MAX_MEMORY * MEMORY_CONTEXT_DIM),
+    social: new Uint8Array(MAX_MEMORY),
   };
+}
+
+/** An organism with no recurrent state: no context gating, as before. */
+const FLAT = new Float32Array(MEMORY_CONTEXT_DIM);
+
+function ctx(...v: number[]): Float32Array {
+  const a = new Float32Array(MEMORY_CONTEXT_DIM);
+  a.set(v.slice(0, MEMORY_CONTEXT_DIM));
+  return a;
 }
 
 describe('episodic memory', () => {
   it('ignores experiences too weak to be worth a slot', () => {
     const m = makeMem();
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 4, 100, 100, ENCODE_THRESHOLD * 0.5);
-    expect(m.s[0]).toBe(0);
+    encodeMemory(m, 0, 4, 100, 100, ENCODE_THRESHOLD * 0.5, FLAT, 0, 0, false);
+    expect(m.strength[0]).toBe(0);
   });
 
   it('stores a strong experience and recalls it at that place', () => {
     const m = makeMem();
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 4, 100, 100, 1);
+    encodeMemory(m, 0, 4, 100, 100, 1, FLAT, 0, 0, false);
     const r = makeRecall();
-    recallInto(m.x, m.y, m.v, m.s, 0, 4, 100, 100, 0, r);
+    recallInto(m, 0, 4, 100, 100, 0, FLAT, 0, 0, r);
     expect(r.valueHere).toBeGreaterThan(0.5);
     expect(r.load).toBeGreaterThan(0);
   });
 
   it('points toward good places and away from bad ones', () => {
     const m = makeMem();
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 4, 200, 100, 1); // good, to the east
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 4, 100, 200, -1); // bad, to the south
+    encodeMemory(m, 0, 4, 200, 100, 1, FLAT, 0, 0, false); // good, to the east
+    encodeMemory(m, 0, 4, 100, 200, -1, FLAT, 0, 0, false); // bad, to the south
     const r = makeRecall();
-    recallInto(m.x, m.y, m.v, m.s, 0, 4, 100, 100, 0, r);
+    recallInto(m, 0, 4, 100, 100, 0, FLAT, 0, 0, r);
     expect(r.bestDX).toBeGreaterThan(0.9);
     expect(r.worstDY).toBeGreaterThan(0.9);
   });
 
   it('merges repeated experiences at the same place instead of filling up', () => {
     const m = makeMem();
-    for (let i = 0; i < 20; i++) encodeMemory(m.x, m.y, m.v, m.s, 0, 4, 100, 100, 1);
+    for (let i = 0; i < 20; i++) encodeMemory(m, 0, 4, 100, 100, 1, FLAT, 0, 0, false);
     let used = 0;
-    for (let s = 0; s < 4; s++) if (m.s[s] > 0) used++;
+    for (let s = 0; s < 4; s++) if (m.strength[s] > 0) used++;
     expect(used).toBe(1);
   });
 
-  it('displaces the weakest memory only when the new one is stronger', () => {
+  it('displaces the least valuable memory only when the new one is worth more', () => {
     const m = makeMem();
     // Fill two slots with widely separated, strong memories.
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 2, 0, 0, 1.4);
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 2, 900, 900, 1.4);
+    encodeMemory(m, 0, 2, 0, 0, 1.4, FLAT, 0, 0, false);
+    encodeMemory(m, 0, 2, 900, 900, 1.4, FLAT, 0, 0, false);
     // A weak new experience elsewhere must not evict either of them.
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 2, 400, 400, 0.4);
-    expect(m.v[0]).toBeCloseTo(1.4, 3);
-    expect(m.v[1]).toBeCloseTo(1.4, 3);
+    encodeMemory(m, 0, 2, 400, 400, 0.4, FLAT, 0, 0, false);
+    expect(m.valence[0]).toBeCloseTo(1.4, 3);
+    expect(m.valence[1]).toBeCloseTo(1.4, 3);
   });
 
   it('forgets over time at the genetic decay rate', () => {
     const m = makeMem();
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 4, 100, 100, 1);
+    encodeMemory(m, 0, 4, 100, 100, 1, FLAT, 0, 0, false);
     const r = makeRecall();
-    for (let t = 0; t < 60; t++) recallInto(m.x, m.y, m.v, m.s, 0, 4, 500, 500, 0.02, r);
-    expect(m.s[0]).toBeLessThan(0.2);
+    for (let t = 0; t < 60; t++) recallInto(m, 0, 4, 500, 500, 0.02, FLAT, 0, 0, r);
+    expect(m.strength[0]).toBeLessThan(0.2);
     // A persistent lineage keeps the same memory far longer.
     const m2 = makeMem();
-    encodeMemory(m2.x, m2.y, m2.v, m2.s, 0, 4, 100, 100, 1);
-    for (let t = 0; t < 60; t++) recallInto(m2.x, m2.y, m2.v, m2.s, 0, 4, 500, 500, 0.0004, r);
-    expect(m2.s[0]).toBeGreaterThan(0.9);
+    encodeMemory(m2, 0, 4, 100, 100, 1, FLAT, 0, 0, false);
+    for (let t = 0; t < 60; t++) recallInto(m2, 0, 4, 500, 500, 0.0004, FLAT, 0, 0, r);
+    expect(m2.strength[0]).toBeGreaterThan(0.9);
   });
 
   it('an organism with zero slots remembers nothing and pays nothing', () => {
     const m = makeMem();
-    encodeMemory(m.x, m.y, m.v, m.s, 0, 0, 100, 100, 1);
+    encodeMemory(m, 0, 0, 100, 100, 1, FLAT, 0, 0, false);
     const r = makeRecall();
-    recallInto(m.x, m.y, m.v, m.s, 0, 0, 100, 100, 0, r);
+    recallInto(m, 0, 0, 100, 100, 0, FLAT, 0, 0, r);
     expect(r.valueHere).toBe(0);
     expect(r.load).toBe(0);
   });
@@ -111,6 +132,110 @@ describe('episodic memory', () => {
     const a = expressInto(makePhenotype(), base, 0).upkeep;
     const b = expressInto(makePhenotype(), rich, 0).upkeep;
     expect(b).toBeGreaterThan(a);
+  });
+});
+
+describe('memory context', () => {
+  it('recalls a memory more strongly in the state it was laid down in', () => {
+    const m = makeMem();
+    const laid = ctx(0.8, -0.5, 0.2, 0.1);
+    encodeMemory(m, 0, 4, 100, 100, 1, laid, 0, 4, false);
+
+    const r = makeRecall();
+    recallInto(m, 0, 4, 100, 100, 0, laid, 0, 4, r);
+    const same = r.valueHere;
+    recallInto(m, 0, 4, 100, 100, 0, ctx(-0.9, 0.7, -0.6, -0.4), 0, 4, r);
+    const different = r.valueHere;
+
+    expect(same).toBeGreaterThan(different);
+    // Never gated away entirely: a memory of this place is still a memory of it.
+    expect(different).toBeGreaterThan(0);
+  });
+
+  it('generalises to a state the brain represents similarly, not to a distant one', () => {
+    const m = makeMem();
+    encodeMemory(m, 0, 4, 100, 100, -1, ctx(0.7, 0.7, 0, 0), 0, 4, false);
+    const r = makeRecall();
+    // A different situation the organism happens to encode almost identically.
+    recallInto(m, 0, 4, 100, 100, 0, ctx(0.62, 0.75, 0.05, 0), 0, 4, r);
+    const near = r.valueHere;
+    recallInto(m, 0, 4, 100, 100, 0, ctx(-0.7, -0.7, 0, 0), 0, 4, r);
+    const far = r.valueHere;
+    expect(near).toBeLessThan(far); // both negative; "near" recalls the warning harder
+  });
+
+  it('an organism with no recurrent state has no context gating at all', () => {
+    const m = makeMem();
+    encodeMemory(m, 0, 4, 100, 100, 1, ctx(0.9, 0.9, 0.9, 0.9), 0, 0, false);
+    const r = makeRecall();
+    recallInto(m, 0, 4, 100, 100, 0, ctx(-0.9, -0.9, -0.9, -0.9), 0, 0, r);
+    const a = r.valueHere;
+    recallInto(m, 0, 4, 100, 100, 0, ctx(0.9, 0.9, 0.9, 0.9), 0, 0, r);
+    expect(r.valueHere).toBeCloseTo(a, 6);
+  });
+
+  it('keeps the same place as two memories when the moments differ', () => {
+    const m = makeMem();
+    encodeMemory(m, 0, 4, 100, 100, 1, ctx(0.9, 0.9), 0, 4, false);
+    encodeMemory(m, 0, 4, 105, 102, 1, ctx(-0.9, -0.9), 0, 4, false);
+    let used = 0;
+    for (let s = 0; s < 4; s++) if (m.strength[s] > 0) used++;
+    expect(used).toBe(2);
+  });
+});
+
+describe('memory importance', () => {
+  it('a memory that keeps being present at notable moments decays more slowly', () => {
+    const useful = makeMem();
+    const idle = makeMem();
+    encodeMemory(useful, 0, 4, 100, 100, 1, FLAT, 0, 0, false);
+    encodeMemory(idle, 0, 4, 100, 100, 1, FLAT, 0, 0, false);
+    for (let t = 0; t < 40; t++) reinforceRecall(useful, 0, 4, 100, 100, 1);
+
+    const r = makeRecall();
+    for (let t = 0; t < 80; t++) {
+      recallInto(useful, 0, 4, 400, 400, 0.01, FLAT, 0, 0, r);
+      recallInto(idle, 0, 4, 400, 400, 0.01, FLAT, 0, 0, r);
+    }
+    expect(useful.strength[0]).toBeGreaterThan(idle.strength[0]);
+  });
+
+  it('protects an important memory from being displaced by a stronger shock', () => {
+    const m = makeMem();
+    encodeMemory(m, 0, 1, 0, 0, 0.6, FLAT, 0, 0, false);
+    for (let t = 0; t < 40; t++) reinforceRecall(m, 0, 1, 0, 0, 1);
+    encodeMemory(m, 0, 1, 900, 900, 1.2, FLAT, 0, 0, false);
+    expect(m.x[0]).toBe(0); // the proven memory held its slot
+  });
+
+  it('reinforcement never happens without a notable moment', () => {
+    const m = makeMem();
+    encodeMemory(m, 0, 4, 100, 100, 1, FLAT, 0, 0, false);
+    reinforceRecall(m, 0, 4, 100, 100, 0);
+    expect(m.importance[0]).toBe(0);
+  });
+});
+
+describe('memory consolidation', () => {
+  it('strengthens what has proven useful and releases what has not', () => {
+    const m = makeMem();
+    encodeMemory(m, 0, 2, 0, 0, 1, FLAT, 0, 0, false);
+    encodeMemory(m, 0, 2, 900, 900, 1, FLAT, 0, 0, false);
+    for (let t = 0; t < 60; t++) reinforceRecall(m, 0, 2, 0, 0, 1);
+    m.strength[0] = 0.5;
+    m.strength[1] = 0.5;
+
+    for (let t = 0; t < 40; t++) consolidateMemory(m, 0, 2, 1);
+    expect(m.strength[0]).toBeGreaterThan(0.5);
+    expect(m.strength[1]).toBeLessThan(0.5);
+  });
+
+  it('does nothing at all when the organism does not consolidate', () => {
+    const m = makeMem();
+    encodeMemory(m, 0, 2, 0, 0, 1, FLAT, 0, 0, false);
+    m.strength[0] = 0.4;
+    consolidateMemory(m, 0, 2, 0);
+    expect(m.strength[0]).toBeCloseTo(0.4, 6);
   });
 });
 
@@ -594,6 +719,15 @@ function baseMetrics(over: Partial<Parameters<Chronicle['update']>[2]>) {
     diversity: 0.2,
     extinctionsInWindow: 0,
     speciesLostFraction: 0,
+    predictionAccuracy: 0,
+    modellingFraction: 0,
+    planningFraction: 0,
+    learningProgress: 0,
+    curiosity: 0,
+    novelty: 0,
+    socialMemoryFraction: 0,
+    vicariousPerTick: 0,
+    toxinDeathsPerTick: 0,
     ...over,
   };
 }

@@ -32,6 +32,18 @@ export const SERIES_KEYS = [
   'imitation',
   'transmission',
   'sharing',
+  // ---- cognition ----
+  // All measured, none of them a target. A run where every one of these stays
+  // flat at zero forever is a legitimate outcome and the charts should show it
+  // plainly rather than finding something to draw.
+  'predictionAccuracy',
+  'predictionRate',
+  'learningProgress',
+  'curiosity',
+  'novelty',
+  'planning',
+  'toxinLoad',
+  'vicarious',
 ] as const;
 
 export type SeriesKey = (typeof SERIES_KEYS)[number];

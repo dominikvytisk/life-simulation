@@ -180,6 +180,43 @@ export const EXPERIMENTS: Experiment[] = [
     ],
   },
   {
+    id: 'shifting-ground',
+    name: 'Shifting Ground',
+    icon: '🧪',
+    hypothesis:
+      'A world whose rules keep moving should punish a fixed belief. Which growth is poisonous changes every few thousand ticks, so any lineage that learned to avoid one appearance is left carrying a lesson that has stopped being true.',
+    whatToWatch:
+      'Prediction accuracy against the toxin burden. A population that is tracking should show accuracy dipping after each shift and recovering; one that is not will show a flat accuracy line and a rising burden. Both are possible and neither is arranged.',
+    config: {
+      toxinPotency: 0.9,
+      toxinDamage: 0.009,
+      vegetationGrowthRate: 0.018,
+      initialPopulation: 2600,
+    },
+    schedule: [
+      { atTick: 4000, spec: { type: 'toxicShift', magnitude: 1 } },
+      { atTick: 12000, spec: { type: 'toxicShift', magnitude: 1.3 } },
+      { atTick: 20000, spec: { type: 'toxicShift', magnitude: 1 } },
+      { atTick: 28000, spec: { type: 'toxicShift', magnitude: 1.5 } },
+    ],
+  },
+  {
+    id: 'stable-world',
+    name: 'The Unchanging World',
+    icon: '🪨',
+    hypothesis:
+      'Almost nothing varies: shallow seasons, long years, steady food. If prediction and memory are worth their upkeep only where the world moves, this is where they should be selected away.',
+    whatToWatch:
+      'Mean prediction rate and memory capacity over tens of thousands of ticks. A decline is the interesting result here, and it is the one this world is set up to make possible.',
+    config: {
+      seasonAmplitude: 0.02,
+      daysPerYear: 48,
+      vegetationGrowthRate: 0.024,
+      toxinPotency: 0,
+      initialPopulation: 2600,
+    },
+  },
+  {
     id: 'aquatic',
     name: 'Ocean World',
     icon: '🌊',
@@ -190,6 +227,9 @@ export const EXPERIMENTS: Experiment[] = [
     config: { waterLevel: 0.6, initialPopulation: 2600, drowningDamage: 0.7 },
   },
 ];
+
+export const COGNITION_EXPERIMENTS_NOTE =
+  'None of these creates an intelligent organism. Each one changes what the world is like and leaves the rest alone.';
 
 export function experimentById(id: string): Experiment {
   return EXPERIMENTS.find((e) => e.id === id) ?? EXPERIMENTS[0];

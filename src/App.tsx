@@ -19,6 +19,7 @@ import { SignalsPanel } from './components/SignalsPanel';
 import { VoicePanel } from './components/VoicePanel';
 import { VoiceSynth } from './audio/synth';
 import { ChroniclePanel } from './components/ChroniclePanel';
+import { CognitionPanel } from './components/CognitionPanel';
 import { ExperimentsPanel } from './components/ExperimentsPanel';
 import { experimentById } from './experiments/presets';
 
@@ -29,6 +30,7 @@ const TABS: { id: PanelTab; label: string }[] = [
   { id: 'voice', label: 'Voice' },
   { id: 'signals', label: 'Culture' },
   { id: 'chronicle', label: 'History' },
+  { id: 'cognition', label: 'Minds' },
   { id: 'experiments', label: 'Lab' },
   { id: 'museum', label: 'Museum' },
   { id: 'brain', label: 'Inspect' },
@@ -61,6 +63,8 @@ export function App() {
           milestones: d.milestones,
           anomalies: d.anomalies,
           mutationTally: d.mutationTally,
+          cognition: d.cognition,
+          trajectories: d.trajectories,
         }),
       onHistory: (history) => set({ history }),
       onPicked: (id) => set({ selectedId: id, tab: id ? 'brain' : useStore.getState().tab }),
@@ -87,7 +91,8 @@ export function App() {
       tab === 'world' ||
       tab === 'signals' ||
       tab === 'voice' ||
-      tab === 'chronicle';
+      tab === 'chronicle' ||
+      tab === 'cognition';
     const detailTimer = window.setInterval(() => {
       if (needsDetail || useStore.getState().selectedId) client.requestDetail();
     }, 400);
@@ -224,6 +229,7 @@ export function App() {
             {tab === 'voice' && <VoicePanel />}
             {tab === 'signals' && <SignalsPanel />}
             {tab === 'chronicle' && <ChroniclePanel />}
+            {tab === 'cognition' && <CognitionPanel />}
             {tab === 'experiments' && <ExperimentsPanel />}
             {tab === 'museum' && <MuseumPanel />}
             {tab === 'brain' && <Inspector />}

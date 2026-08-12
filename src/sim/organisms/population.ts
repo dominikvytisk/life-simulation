@@ -9,6 +9,10 @@
 import { GENOME_LENGTH } from '../genome/loci';
 import { BRAIN_STRIDE, PLASTIC_STRIDE } from '../brain/brain';
 import { MAX_CONTEXT, MAX_MEMORY, type Phenotype } from '../genome/phenotype';
+import { MEMORY_CONTEXT_DIM, type MemoryArrays } from '../memory/memory';
+import { MODEL_FEATURES, MODEL_ROWS, MODEL_STRIDE } from '../cognition/worldModel';
+import { REPLAY_STRIDE } from '../cognition/consolidation';
+import { OUTPUT_COUNT } from '../brain/brain';
 import { MAX_PROTOTYPES, VOICE_DIM } from '../acoustics/sound';
 import { ECHOIC_STRIDE } from '../acoustics/ear';
 import { PROTO_STRIDE } from '../acoustics/association';
@@ -114,6 +118,59 @@ export class Population {
   readonly memY: Float32Array;
   readonly memValence: Float32Array;
   readonly memStrength: Float32Array;
+  /** How much use each memory has been. Slows its decay, protects it from eviction. */
+  readonly memImportance: Float32Array;
+  /** Internal state each memory was laid down in. capacity * MAX_MEMORY * MEMORY_CONTEXT_DIM. */
+  readonly memContext: Float32Array;
+  /** 1 where a memory was inferred from a sound rather than lived through. */
+  readonly memSocial: Uint8Array;
+  /** Grouped view of the above, so memory code never takes nine arguments. */
+  readonly mem: MemoryArrays;
+
+  // ---- the world model (soma: learned in life, never inherited) ----
+  /**
+   * One private predictive model per organism. Nothing is shared and nothing is
+   * trained across the population; two siblings raised in different places end
+   * up with different weights here, and that is the whole point of it being
+   * per-organism state rather than one network everybody queries.
+   */
+  readonly model: Float32Array; // capacity * MODEL_STRIDE
+  /** Per-feature exposure — the basis for knowing what it has not seen. */
+  readonly modelExposure: Float32Array; // capacity * MODEL_FEATURES
+  /** The prediction currently outstanding, waiting for the world to answer it. */
+  readonly modelPred: Float32Array; // capacity * MODEL_ROWS
+  /** The features that prediction was made from. */
+  readonly modelFeat: Float32Array; // capacity * MODEL_FEATURES
+  readonly modelPending: Uint8Array;
+  /** Reward banked since the outstanding prediction was made. */
+  readonly modelRewardAccum: Float32Array;
+  /** How many transitions this organism has actually fitted. */
+  readonly modelSamples: Uint32Array;
+
+  // ---- what the organism knows about its own knowing ----
+  readonly predError: Float32Array; // most recent surprise
+  readonly predErrorFast: Float32Array; // short-horizon average
+  readonly predErrorSlow: Float32Array; // long-horizon average
+  /** How much surprise bounces around on its own, regardless of any trend. */
+  readonly predErrorVar: Float32Array;
+  readonly rewardError: Float32Array; // kept apart from the latent error
+  readonly modelConfidence: Float32Array;
+  readonly novelty: Float32Array;
+  readonly learningProgress: Float32Array;
+  readonly intrinsic: Float32Array;
+  readonly planAdvantage: Float32Array;
+  /** The motor plan deliberation settled on, held between deliberations. */
+  readonly planDelta: Float32Array; // capacity * OUTPUT_COUNT
+
+  // ---- offline replay ----
+  readonly replay: Float32Array; // capacity * REPLAY_STRIDE
+  readonly replayHead: Uint8Array;
+  readonly consolidations: Uint16Array;
+
+  /** Accumulated dose of something the organism has no name for. */
+  readonly toxinLoad: Float32Array;
+  /** Memories acquired from a sound rather than from experience. */
+  readonly vicariousMemories: Uint16Array;
 
   // ---- identity beyond the genome ----
   /** Neutral markers used for kin recognition. */
@@ -199,6 +256,14 @@ export class Population {
   readonly auditoryResolution: Float32Array;
   readonly echoicDepth: Uint8Array;
   readonly soundPrototypes: Uint8Array;
+  readonly predictionRate: Float32Array;
+  readonly modelDecay: Float32Array;
+  readonly metaGain: Float32Array;
+  readonly curiosity: Float32Array;
+  readonly planHorizon: Uint8Array;
+  readonly planBudget: Uint8Array;
+  readonly consolidation: Float32Array;
+  readonly toxinClearance: Float32Array;
 
   // ---- slot management ----
   private freeList: Int32Array;
@@ -273,6 +338,45 @@ export class Population {
     this.memY = new Float32Array(capacity * MAX_MEMORY);
     this.memValence = new Float32Array(capacity * MAX_MEMORY);
     this.memStrength = new Float32Array(capacity * MAX_MEMORY);
+    this.memImportance = new Float32Array(capacity * MAX_MEMORY);
+    this.memContext = new Float32Array(capacity * MAX_MEMORY * MEMORY_CONTEXT_DIM);
+    this.memSocial = new Uint8Array(capacity * MAX_MEMORY);
+    this.mem = {
+      x: this.memX,
+      y: this.memY,
+      valence: this.memValence,
+      strength: this.memStrength,
+      importance: this.memImportance,
+      context: this.memContext,
+      social: this.memSocial,
+    };
+
+    this.model = new Float32Array(capacity * MODEL_STRIDE);
+    this.modelExposure = new Float32Array(capacity * MODEL_FEATURES);
+    this.modelPred = new Float32Array(capacity * MODEL_ROWS);
+    this.modelFeat = new Float32Array(capacity * MODEL_FEATURES);
+    this.modelPending = new Uint8Array(capacity);
+    this.modelRewardAccum = f();
+    this.modelSamples = u32();
+
+    this.predError = f();
+    this.predErrorFast = f();
+    this.predErrorSlow = f();
+    this.predErrorVar = f();
+    this.rewardError = f();
+    this.modelConfidence = f();
+    this.novelty = f();
+    this.learningProgress = f();
+    this.intrinsic = f();
+    this.planAdvantage = f();
+    this.planDelta = new Float32Array(capacity * OUTPUT_COUNT);
+
+    this.replay = new Float32Array(capacity * REPLAY_STRIDE);
+    this.replayHead = new Uint8Array(capacity);
+    this.consolidations = new Uint16Array(capacity);
+
+    this.toxinLoad = f();
+    this.vicariousMemories = new Uint16Array(capacity);
 
     this.kinTag = new Float32Array(capacity * KIN_TAG_LENGTH);
     this.matriline = u32();
@@ -344,6 +448,14 @@ export class Population {
     this.auditoryResolution = f();
     this.echoicDepth = new Uint8Array(capacity);
     this.soundPrototypes = new Uint8Array(capacity);
+    this.predictionRate = f();
+    this.modelDecay = f();
+    this.metaGain = f();
+    this.curiosity = f();
+    this.planHorizon = new Uint8Array(capacity);
+    this.planBudget = new Uint8Array(capacity);
+    this.consolidation = f();
+    this.toxinClearance = f();
 
     this.freeList = new Int32Array(capacity);
   }
@@ -432,6 +544,37 @@ export class Population {
     this.lastEmittedCluster[slot] = -1;
     const mo = slot * MAX_MEMORY;
     this.memStrength.fill(0, mo, mo + MAX_MEMORY);
+    this.memImportance.fill(0, mo, mo + MAX_MEMORY);
+    this.memSocial.fill(0, mo, mo + MAX_MEMORY);
+    this.memContext.fill(0, mo * MEMORY_CONTEXT_DIM, (mo + MAX_MEMORY) * MEMORY_CONTEXT_DIM);
+    // The world model is soma, and this is where knowledge dies. A newborn
+    // taking a recycled slot inherits its parents' genes and its parents'
+    // inherited weights, but not one thing either of them ever worked out about
+    // the world. Anything an organism learned and did not pass on through
+    // behaviour, sound or imitation is simply gone.
+    this.model.fill(0, slot * MODEL_STRIDE, (slot + 1) * MODEL_STRIDE);
+    this.modelExposure.fill(0, slot * MODEL_FEATURES, (slot + 1) * MODEL_FEATURES);
+    this.modelFeat.fill(0, slot * MODEL_FEATURES, (slot + 1) * MODEL_FEATURES);
+    this.modelPred.fill(0, slot * MODEL_ROWS, (slot + 1) * MODEL_ROWS);
+    this.modelPending[slot] = 0;
+    this.modelRewardAccum[slot] = 0;
+    this.modelSamples[slot] = 0;
+    this.predError[slot] = 0;
+    this.predErrorFast[slot] = 0;
+    this.predErrorSlow[slot] = 0;
+    this.predErrorVar[slot] = 0;
+    this.rewardError[slot] = 0;
+    this.modelConfidence[slot] = 0;
+    this.novelty[slot] = 0;
+    this.learningProgress[slot] = 0;
+    this.intrinsic[slot] = 0;
+    this.planAdvantage[slot] = 0;
+    this.planDelta.fill(0, slot * OUTPUT_COUNT, (slot + 1) * OUTPUT_COUNT);
+    this.replay.fill(0, slot * REPLAY_STRIDE, (slot + 1) * REPLAY_STRIDE);
+    this.replayHead[slot] = 0;
+    this.consolidations[slot] = 0;
+    this.toxinLoad[slot] = 0;
+    this.vicariousMemories[slot] = 0;
     this.imitations[slot] = 0;
     this.mutations[slot] = 0;
     this.energyGiven[slot] = 0;
@@ -501,10 +644,33 @@ export class Population {
     this.auditoryResolution[slot] = p.auditoryResolution;
     this.echoicDepth[slot] = p.echoicDepth;
     this.soundPrototypes[slot] = p.soundPrototypes;
+    this.predictionRate[slot] = p.predictionRate;
+    this.modelDecay[slot] = p.modelDecay;
+    this.metaGain[slot] = p.metaGain;
+    this.curiosity[slot] = p.curiosity;
+    this.planHorizon[slot] = p.planHorizon;
+    this.planBudget[slot] = p.planBudget;
+    this.consolidation[slot] = p.consolidation;
+    this.toxinClearance[slot] = p.toxinClearance;
   }
 
   memoryOffset(slot: number): number {
     return slot * MAX_MEMORY;
+  }
+  modelOffset(slot: number): number {
+    return slot * MODEL_STRIDE;
+  }
+  modelFeatureOffset(slot: number): number {
+    return slot * MODEL_FEATURES;
+  }
+  modelPredOffset(slot: number): number {
+    return slot * MODEL_ROWS;
+  }
+  replayOffset(slot: number): number {
+    return slot * REPLAY_STRIDE;
+  }
+  planOffset(slot: number): number {
+    return slot * OUTPUT_COUNT;
   }
   voiceOffset(slot: number): number {
     return slot * VOICE_DIM;

@@ -24,6 +24,7 @@ export const WorldEventType = {
   Rain: 'rain',
   Bloom: 'bloom',
   Blight: 'blight',
+  ToxicShift: 'toxicShift',
 } as const;
 export type WorldEventTypeId = (typeof WorldEventType)[keyof typeof WorldEventType];
 
@@ -44,6 +45,8 @@ interface ActiveForcing {
   tempDelta: number;
   vegMultiplier: number;
   moistureDelta: number;
+  /** How far the dangerous band of vegetation has moved. */
+  toxicDelta: number;
 }
 
 export const WORLD_EVENT_INFO: Record<
@@ -104,6 +107,13 @@ export const WORLD_EVENT_INFO: Record<
     blurb: 'Vegetation regrowth collapses. Competition intensifies.',
     localized: false,
   },
+  toxicShift: {
+    label: 'Chemical shift',
+    icon: '🧪',
+    blurb:
+      'Which kind of growth is poisonous moves. Nothing dies of it directly, but everything that learned the old rule is now wrong.',
+    localized: false,
+  },
 };
 
 /** How much racket each kind of weather makes. Nothing else consults this. */
@@ -149,6 +159,7 @@ export class WorldEventSystem {
           tempDelta: -0.22 * mag,
           vegMultiplier: 0.55,
           moistureDelta: 0,
+          toxicDelta: 0,
         });
         return `Meteor impact at (${x.toFixed(0)}, ${y.toFixed(0)}) — ${r.toFixed(0)}u crater, dust veil cooling the world`;
       }
@@ -164,6 +175,7 @@ export class WorldEventSystem {
           tempDelta: -0.1 * mag,
           vegMultiplier: 0.8,
           moistureDelta: 0,
+          toxicDelta: 0,
         });
         return `Volcanic eruption at (${x.toFixed(0)}, ${y.toFixed(0)}) — ash cloud, then enriched soil`;
       }
@@ -181,6 +193,7 @@ export class WorldEventSystem {
           tempDelta: -0.02,
           vegMultiplier: 0.85,
           moistureDelta: 0.15 * mag,
+          toxicDelta: 0,
         });
         return `Flood — sea level rises by ${(0.03 * mag).toFixed(3)}`;
       }
@@ -192,6 +205,7 @@ export class WorldEventSystem {
           tempDelta: -0.3 * mag,
           vegMultiplier: 0.5,
           moistureDelta: -0.05,
+          toxicDelta: 0,
         });
         return `Ice age begins — global temperature falling by ${(0.3 * mag).toFixed(2)}`;
       case 'heatWave':
@@ -202,6 +216,7 @@ export class WorldEventSystem {
           tempDelta: 0.26 * mag,
           vegMultiplier: 0.75,
           moistureDelta: -0.12,
+          toxicDelta: 0,
         });
         return `Heat wave — global temperature rising by ${(0.26 * mag).toFixed(2)}`;
       case 'rain':
@@ -212,6 +227,7 @@ export class WorldEventSystem {
           tempDelta: -0.03,
           vegMultiplier: 1.7,
           moistureDelta: 0.1,
+          toxicDelta: 0,
         });
         return 'Heavy rain — vegetation growth accelerates';
       case 'bloom':
@@ -222,6 +238,7 @@ export class WorldEventSystem {
           tempDelta: 0,
           vegMultiplier: 3.2,
           moistureDelta: 0,
+          toxicDelta: 0,
         });
         return 'Abundance — food is everywhere. Selection pressure on foraging collapses';
       case 'blight':
@@ -232,8 +249,28 @@ export class WorldEventSystem {
           tempDelta: 0,
           vegMultiplier: 0.15,
           moistureDelta: 0,
+          toxicDelta: 0,
         });
         return 'Blight — vegetation regrowth nearly halts';
+      case 'toxicShift': {
+        // Which appearance is dangerous moves, by an amount and in a direction
+        // nothing announces. This kills nobody. What it does is invalidate
+        // every model in the world at once, which is a different kind of
+        // pressure from a meteor: the organisms that come through it are the
+        // ones whose learning could keep up, not the ones that were furthest
+        // from the impact.
+        const shift = (rng.chance(0.5) ? -1 : 1) * (0.18 + rng.next() * 0.3) * mag;
+        this.active.push({
+          type: 'toxicShift',
+          ticksLeft: spec.durationTicks ?? 12000,
+          totalTicks: spec.durationTicks ?? 12000,
+          tempDelta: 0,
+          vegMultiplier: 1,
+          moistureDelta: 0,
+          toxicDelta: shift,
+        });
+        return `Chemical shift — the dangerous band of vegetation moves by ${shift.toFixed(2)}`;
+      }
       default:
         return 'Unknown event';
     }
@@ -244,6 +281,7 @@ export class WorldEventSystem {
     let temp = 0;
     let veg = 1;
     let noise = 0;
+    let toxic = 0;
     for (let i = this.active.length - 1; i >= 0; i--) {
       const a = this.active[i];
       a.ticksLeft--;
@@ -253,10 +291,12 @@ export class WorldEventSystem {
       temp += a.tempDelta * envelope;
       veg *= 1 + (a.vegMultiplier - 1) * envelope;
       noise += (EVENT_NOISE[a.type] ?? 0) * envelope;
+      toxic += a.toxicDelta * envelope;
       if (a.ticksLeft <= 0) this.active.splice(i, 1);
     }
     cfg.globalTemperatureOffset = temp;
     cfg.vegetationGrowthMultiplier = veg;
+    cfg.toxicCenterOffset = toxic;
     this.acousticNoise = noise;
     if (this.floodOffset > 0) this.floodOffset *= 0.99975;
   }

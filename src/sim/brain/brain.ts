@@ -95,14 +95,35 @@ export const Input = {
   HeardValence: 57,
   HeardFamiliarity: 58,
 
+  // --- what this organism knows about its own knowing ---
+  // Interoception aimed at the learning machinery rather than at the body. The
+  // brain is told how badly its own model of the world has been failing, how
+  // much of what it is looking at is unfamiliar, and whether it has been
+  // getting better lately. Nothing tells it what to do about any of that. An
+  // organism is free to evolve to ignore all six, and most do.
+  PredictionError: 59,
+  ModelConfidence: 60,
+  LearningProgress: 61,
+  Novelty: 62,
+  IntrinsicDrive: 63,
+  PlanAdvantage: 64, // how much better deliberating made the last decision look
+
+  // --- more of the world, and of the body ---
+  // A visible property of the local vegetation, and how much of something the
+  // organism cannot name has built up inside it. Neither is a label. That the
+  // first predicts the second is a fact about this world that has to be
+  // discovered, and it is not always true.
+  FloraTrait: 65,
+  ToxinLoad: 66,
+
   // --- echoic memory: the last few finished sounds, newest first ---
   // Three numbers each: pitch, loudness, and the silence that preceded it.
   // A pair of sounds with a gap between them is a different object from the
   // same pair reversed, and that is all the support sequence gets.
-  Echo0: 59,
+  Echo0: 67,
 } as const;
 export const ECHO_INPUTS = 3;
-export const INPUT_COUNT = 59 + MAX_ECHOIC * ECHO_INPUTS; // 71
+export const INPUT_COUNT = 67 + MAX_ECHOIC * ECHO_INPUTS; // 79
 
 export const Output = {
   Thrust: 0,

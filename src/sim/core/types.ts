@@ -90,6 +90,39 @@ export interface Stats {
   /** Strongest measured association between a call shape and anything at all,
    * as a standardised difference. 0 means nothing was detected. */
   signalMeaningConfidence: number;
+  // ---- cognition ----
+  // Capabilities and performance, measured separately. There is deliberately no
+  // single "intelligence" number: an organism that predicts well but never
+  // plans, and one that plans deeply on a model it has not fitted, are
+  // different animals and collapsing them into one score would hide exactly the
+  // thing worth looking at.
+  /** Mean expressed rate at which internal models are fitted. */
+  avgPredictionRate: number;
+  /** Mean recent surprise, over the organisms that predict at all. */
+  avgPredictionError: number;
+  /** Mean 1/(1+surprise): how well the population predicts its own next state. */
+  avgPredictionAccuracy: number;
+  avgLearningProgress: number;
+  /** Mean unfamiliarity of the situations organisms are acting in. */
+  avgNovelty: number;
+  avgCuriosity: number;
+  avgPlanHorizon: number;
+  /** Fraction of the population that fits a predictive model at all. */
+  modellingFraction: number;
+  /** Fraction that deliberates before acting at all. */
+  planningFraction: number;
+  modelStepsPerTick: number;
+  planStepsPerTick: number;
+  avgConsolidation: number;
+  avgMemoryImportance: number;
+  /** Fraction of held place-memories that were heard about rather than lived. */
+  socialMemoryFraction: number;
+  /** Place memories acquired from a sound, per tick. */
+  vicariousPerTick: number;
+  avgToxinLoad: number;
+  /** Deaths of organisms carrying a load above the harmless threshold. */
+  toxinDeathsPerTick: number;
+
   diversity: number;
   carnivory: number; // mean gut specialisation, 0 = all plant, 1 = all meat
   carnivoreFraction: number; // fraction with a meat-leaning gut
@@ -122,6 +155,10 @@ export interface SpeciesSummary {
   avgBrain: number;
   avgMemory: number;
   avgSocialLearning: number;
+  avgPredictionRate: number;
+  avgPredictionAccuracy: number;
+  avgCuriosity: number;
+  avgPlanHorizon: number;
   carnivory: number;
   /** Inferred from telemetry, never assigned. Null until enough samples. */
   niche: NicheProfile | null;
@@ -161,7 +198,38 @@ export interface OrganismInspection {
   energyGiven: number;
   energyReceived: number;
   kinTag: number[];
-  memories: { x: number; y: number; valence: number; strength: number }[];
+  memories: {
+    x: number;
+    y: number;
+    valence: number;
+    strength: number;
+    importance: number;
+    /** True where the belief came from a sound and was never lived. */
+    social: boolean;
+  }[];
+
+  // ---- the learning apparatus, as it actually stands in this animal ----
+  toxinLoad: number;
+  predictionRate: number;
+  curiosity: number;
+  planHorizon: number;
+  planBudget: number;
+  consolidation: number;
+  /** How many transitions this organism has fitted in its life. */
+  modelSamples: number;
+  predictionError: number;
+  rewardError: number;
+  modelConfidence: number;
+  learningProgress: number;
+  novelty: number;
+  intrinsic: number;
+  planAdvantage: number;
+  consolidations: number;
+  vicariousMemories: number;
+  /** What it expected its next internal state to be, and what it turned out to be. */
+  predictedLatent: number[];
+  /** The departure from instinct its last deliberation settled on. */
+  planDelta: number[];
   /** Current acoustic frame: pitch, loudness, noisiness, timbre, sweep, tremolo. */
   voice: number[];
   calling: boolean;

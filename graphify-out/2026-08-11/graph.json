@@ -2077,7 +2077,7 @@
       "label": "experimentById()",
       "file_type": "code",
       "source_file": "src/experiments/presets.ts",
-      "source_location": "L172",
+      "source_location": "L194",
       "id": "experiments_presets_experimentbyid",
       "community": 1,
       "norm_label": "experimentbyid()"
@@ -2869,7 +2869,7 @@
       "label": "Association",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L94",
+      "source_location": "L105",
       "id": "analysis_acoustics_association",
       "community": 20,
       "norm_label": "association"
@@ -2878,7 +2878,7 @@
       "label": "CallCluster",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L101",
+      "source_location": "L112",
       "id": "analysis_acoustics_callcluster",
       "community": 20,
       "norm_label": "callcluster"
@@ -2887,7 +2887,7 @@
       "label": "SequenceReport",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L129",
+      "source_location": "L140",
       "id": "analysis_acoustics_sequencereport",
       "community": 20,
       "norm_label": "sequencereport"
@@ -2896,7 +2896,7 @@
       "label": "TurnTakingReport",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L140",
+      "source_location": "L151",
       "id": "analysis_acoustics_turntakingreport",
       "community": 20,
       "norm_label": "turntakingreport"
@@ -2905,7 +2905,7 @@
       "label": "DialectReport",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L157",
+      "source_location": "L168",
       "id": "analysis_acoustics_dialectreport",
       "community": 20,
       "norm_label": "dialectreport"
@@ -2914,7 +2914,7 @@
       "label": "UnknownPattern",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L166",
+      "source_location": "L177",
       "id": "analysis_acoustics_unknownpattern",
       "community": 20,
       "norm_label": "unknownpattern"
@@ -2923,7 +2923,7 @@
       "label": "AcousticReport",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L175",
+      "source_location": "L186",
       "id": "analysis_acoustics_acousticreport",
       "community": 3,
       "norm_label": "acousticreport"
@@ -2932,7 +2932,7 @@
       "label": "AcousticAnalyzer",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L222",
+      "source_location": "L233",
       "id": "analysis_acoustics_acousticanalyzer",
       "community": 20,
       "norm_label": "acousticanalyzer"
@@ -2941,7 +2941,7 @@
       "label": ".classify()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L293",
+      "source_location": "L304",
       "id": "analysis_acoustics_acousticanalyzer_classify",
       "community": 20,
       "norm_label": ".classify()"
@@ -2950,7 +2950,7 @@
       "label": ".observeCall()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L315",
+      "source_location": "L326",
       "id": "analysis_acoustics_acousticanalyzer_observecall",
       "community": 20,
       "norm_label": ".observecall()"
@@ -2959,7 +2959,7 @@
       "label": ".observeHearingOpportunity()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L483",
+      "source_location": "L499",
       "id": "analysis_acoustics_acousticanalyzer_observehearingopportunity",
       "community": 20,
       "norm_label": ".observehearingopportunity()"
@@ -2968,7 +2968,7 @@
       "label": ".observeResponse()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L490",
+      "source_location": "L506",
       "id": "analysis_acoustics_acousticanalyzer_observeresponse",
       "community": 20,
       "norm_label": ".observeresponse()"
@@ -2977,7 +2977,7 @@
       "label": ".adopt()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L506",
+      "source_location": "L522",
       "id": "analysis_acoustics_acousticanalyzer_adopt",
       "community": 20,
       "norm_label": ".adopt()"
@@ -2986,7 +2986,7 @@
       "label": ".decaySpeciesHistograms()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L539",
+      "source_location": "L555",
       "id": "analysis_acoustics_acousticanalyzer_decayspecieshistograms",
       "community": 20,
       "norm_label": ".decayspecieshistograms()"
@@ -2995,7 +2995,7 @@
       "label": ".retire()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L553",
+      "source_location": "L569",
       "id": "analysis_acoustics_acousticanalyzer_retire",
       "community": 20,
       "norm_label": ".retire()"
@@ -3004,7 +3004,7 @@
       "label": ".bumpSpecies()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L559",
+      "source_location": "L575",
       "id": "analysis_acoustics_acousticanalyzer_bumpspecies",
       "community": 20,
       "norm_label": ".bumpspecies()"
@@ -3013,7 +3013,7 @@
       "label": ".noteUnknown()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L580",
+      "source_location": "L596",
       "id": "analysis_acoustics_acousticanalyzer_noteunknown",
       "community": 20,
       "norm_label": ".noteunknown()"
@@ -3022,7 +3022,7 @@
       "label": ".report()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L638",
+      "source_location": "L654",
       "id": "analysis_acoustics_acousticanalyzer_report",
       "community": 20,
       "norm_label": ".report()"
@@ -3031,7 +3031,7 @@
       "label": ".contextAssociations()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L760",
+      "source_location": "L776",
       "id": "analysis_acoustics_acousticanalyzer_contextassociations",
       "community": 20,
       "norm_label": ".contextassociations()"
@@ -3040,7 +3040,7 @@
       "label": ".responseAssociations()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L778",
+      "source_location": "L795",
       "id": "analysis_acoustics_acousticanalyzer_responseassociations",
       "community": 20,
       "norm_label": ".responseassociations()"
@@ -3049,7 +3049,7 @@
       "label": ".sequenceReport()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L801",
+      "source_location": "L819",
       "id": "analysis_acoustics_acousticanalyzer_sequencereport",
       "community": 20,
       "norm_label": ".sequencereport()"
@@ -3058,7 +3058,7 @@
       "label": ".turnTakingReport()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L852",
+      "source_location": "L870",
       "id": "analysis_acoustics_acousticanalyzer_turntakingreport",
       "community": 20,
       "norm_label": ".turntakingreport()"
@@ -3067,7 +3067,7 @@
       "label": ".dialectReport()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L886",
+      "source_location": "L904",
       "id": "analysis_acoustics_acousticanalyzer_dialectreport",
       "community": 20,
       "norm_label": ".dialectreport()"
@@ -3076,7 +3076,7 @@
       "label": ".unknownReport()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L948",
+      "source_location": "L966",
       "id": "analysis_acoustics_acousticanalyzer_unknownreport",
       "community": 20,
       "norm_label": ".unknownreport()"
@@ -3085,7 +3085,7 @@
       "label": ".sampleCount()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L967",
+      "source_location": "L985",
       "id": "analysis_acoustics_acousticanalyzer_samplecount",
       "community": 20,
       "norm_label": ".samplecount()"
@@ -3094,7 +3094,7 @@
       "label": ".reset()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L971",
+      "source_location": "L989",
       "id": "analysis_acoustics_acousticanalyzer_reset",
       "community": 20,
       "norm_label": ".reset()"
@@ -3103,7 +3103,7 @@
       "label": "clampEffect()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L1020",
+      "source_location": "L1038",
       "id": "analysis_acoustics_clampeffect",
       "community": 20,
       "norm_label": "clampeffect()"
@@ -3112,7 +3112,7 @@
       "label": "jensenShannon()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L1026",
+      "source_location": "L1044",
       "id": "analysis_acoustics_jensenshannon",
       "community": 20,
       "norm_label": "jensenshannon()"
@@ -3121,7 +3121,7 @@
       "label": "describeCall()",
       "file_type": "code",
       "source_file": "src/sim/analysis/acoustics.ts",
-      "source_location": "L1048",
+      "source_location": "L1066",
       "id": "analysis_acoustics_describecall",
       "community": 20,
       "norm_label": "describecall()"
@@ -7293,9 +7293,9 @@
       "source_file": ".claude/settings.json",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "claude_settings",
-      "target": "claude_settings_hooks",
-      "confidence_score": 1.0
+      "target": "claude_settings_hooks"
     },
     {
       "relation": "contains",
@@ -7303,9 +7303,9 @@
       "source_file": ".claude/settings.json",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "claude_settings_hooks",
-      "target": "claude_settings_hooks_pretooluse",
-      "confidence_score": 1.0
+      "target": "claude_settings_hooks_pretooluse"
     },
     {
       "relation": "contains",
@@ -7503,9 +7503,9 @@
       "source_file": "package.json",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "package_scripts",
-      "target": "package_scripts_voice",
-      "confidence_score": 1.0
+      "target": "package_scripts_voice"
     },
     {
       "relation": "contains",
@@ -7643,9 +7643,9 @@
       "source_file": "scripts/acousticProbe.ts",
       "source_location": "L35",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_acousticprobe",
-      "target": "scripts_acousticprobe_report",
-      "confidence_score": 1.0
+      "target": "scripts_acousticprobe_report"
     },
     {
       "relation": "contains",
@@ -7653,9 +7653,9 @@
       "source_file": "scripts/acousticProbe.ts",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_acousticprobe",
-      "target": "scripts_acousticprobe_seed",
-      "confidence_score": 1.0
+      "target": "scripts_acousticprobe_seed"
     },
     {
       "relation": "contains",
@@ -7663,9 +7663,9 @@
       "source_file": "scripts/acousticProbe.ts",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_acousticprobe",
-      "target": "scripts_acousticprobe_sim",
-      "confidence_score": 1.0
+      "target": "scripts_acousticprobe_sim"
     },
     {
       "relation": "contains",
@@ -7673,9 +7673,9 @@
       "source_file": "scripts/acousticProbe.ts",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_acousticprobe",
-      "target": "scripts_acousticprobe_t0",
-      "confidence_score": 1.0
+      "target": "scripts_acousticprobe_t0"
     },
     {
       "relation": "contains",
@@ -7683,9 +7683,9 @@
       "source_file": "scripts/acousticProbe.ts",
       "source_location": "L12",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_acousticprobe",
-      "target": "scripts_acousticprobe_ticks",
-      "confidence_score": 1.0
+      "target": "scripts_acousticprobe_ticks"
     },
     {
       "relation": "imports_from",
@@ -7694,9 +7694,9 @@
       "source_file": "scripts/acousticProbe.ts",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_acousticprobe",
-      "target": "sim_simulation",
-      "confidence_score": 1.0
+      "target": "sim_simulation"
     },
     {
       "relation": "imports",
@@ -7705,9 +7705,9 @@
       "source_file": "scripts/acousticProbe.ts",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_acousticprobe",
-      "target": "sim_simulation_simulation",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation"
     },
     {
       "relation": "references",
@@ -8249,9 +8249,9 @@
       "source_file": "src/App.tsx",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_app",
-      "target": "audio_synth",
-      "confidence_score": 1.0
+      "target": "audio_synth"
     },
     {
       "relation": "imports",
@@ -8260,9 +8260,9 @@
       "source_file": "src/App.tsx",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_app",
-      "target": "audio_synth_voicesynth",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth"
     },
     {
       "relation": "imports_from",
@@ -8491,9 +8491,9 @@
       "source_file": "src/App.tsx",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_app",
-      "target": "components_voicepanel",
-      "confidence_score": 1.0
+      "target": "components_voicepanel"
     },
     {
       "relation": "imports",
@@ -8502,9 +8502,9 @@
       "source_file": "src/App.tsx",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_app",
-      "target": "components_voicepanel_voicepanel",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_voicepanel"
     },
     {
       "relation": "imports_from",
@@ -8897,9 +8897,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "app_client",
-      "confidence_score": 1.0
+      "target": "app_client"
     },
     {
       "relation": "imports_from",
@@ -8941,9 +8941,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "app_client",
-      "confidence_score": 1.0
+      "target": "app_client"
     },
     {
       "relation": "imports_from",
@@ -8985,9 +8985,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "app_client_getclient",
-      "confidence_score": 1.0
+      "target": "app_client_getclient"
     },
     {
       "relation": "imports",
@@ -9062,9 +9062,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "app_client_getclient",
-      "confidence_score": 1.0
+      "target": "app_client_getclient"
     },
     {
       "relation": "imports",
@@ -9280,9 +9280,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L17",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient",
-      "target": "analysis_acoustics_acousticreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticreport"
     },
     {
       "relation": "imports",
@@ -9397,9 +9397,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L17",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient",
-      "target": "core_types_audiblevoice",
-      "confidence_score": 1.0
+      "target": "core_types_audiblevoice"
     },
     {
       "relation": "imports",
@@ -9408,9 +9408,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L17",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient",
-      "target": "core_types_firstcontactreport",
-      "confidence_score": 1.0
+      "target": "core_types_firstcontactreport"
     },
     {
       "relation": "imports",
@@ -9550,9 +9550,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L36",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_detailpayload",
-      "target": "analysis_acoustics_acousticreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticreport"
     },
     {
       "relation": "references",
@@ -9594,9 +9594,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_detailpayload",
-      "target": "core_types_firstcontactreport",
-      "confidence_score": 1.0
+      "target": "core_types_firstcontactreport"
     },
     {
       "relation": "references",
@@ -9646,9 +9646,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L268",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient",
-      "target": "app_simclient_simclient_externalsound",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_externalsound"
     },
     {
       "relation": "method",
@@ -9696,9 +9696,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L230",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient",
-      "target": "app_simclient_simclient_listenerx",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_listenerx"
     },
     {
       "relation": "method",
@@ -9706,9 +9706,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L233",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient",
-      "target": "app_simclient_simclient_listenery",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_listenery"
     },
     {
       "relation": "method",
@@ -9816,9 +9816,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L242",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient",
-      "target": "app_simclient_simclient_setlistenerenabled",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_setlistenerenabled"
     },
     {
       "relation": "method",
@@ -9876,9 +9876,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L259",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient",
-      "target": "app_simclient_simclient_tracklistener",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_tracklistener"
     },
     {
       "relation": "method",
@@ -9897,9 +9897,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient",
-      "target": "core_types_audiblevoice",
-      "confidence_score": 1.0
+      "target": "core_types_audiblevoice"
     },
     {
       "relation": "calls",
@@ -9908,9 +9908,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L269",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient_externalsound",
-      "target": "app_simclient_simclient_send",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_send"
     },
     {
       "relation": "calls",
@@ -10062,9 +10062,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L246",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient_setlistenerenabled",
-      "target": "app_simclient_simclient_send",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_send"
     },
     {
       "relation": "calls",
@@ -10117,9 +10117,9 @@
       "source_file": "src/app/simClient.ts",
       "source_location": "L265",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_simclient_simclient_tracklistener",
-      "target": "app_simclient_simclient_send",
-      "confidence_score": 1.0
+      "target": "app_simclient_simclient_send"
     },
     {
       "relation": "calls",
@@ -10216,9 +10216,9 @@
       "source_file": "src/app/store.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_store",
-      "target": "analysis_acoustics_acousticreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticreport"
     },
     {
       "relation": "imports",
@@ -10323,9 +10323,9 @@
       "source_file": "src/app/store.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_store",
-      "target": "core_types_firstcontactreport",
-      "confidence_score": 1.0
+      "target": "core_types_firstcontactreport"
     },
     {
       "relation": "imports",
@@ -10466,9 +10466,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "app_store",
-      "confidence_score": 1.0
+      "target": "app_store"
     },
     {
       "relation": "imports_from",
@@ -10554,9 +10554,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "app_store",
-      "confidence_score": 1.0
+      "target": "app_store"
     },
     {
       "relation": "imports_from",
@@ -10587,9 +10587,9 @@
       "source_file": "src/app/store.ts",
       "source_location": "L51",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_store_uistate",
-      "target": "analysis_acoustics_acousticreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticreport"
     },
     {
       "relation": "references",
@@ -10642,9 +10642,9 @@
       "source_file": "src/app/store.ts",
       "source_location": "L52",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "app_store_uistate",
-      "target": "core_types_firstcontactreport",
-      "confidence_score": 1.0
+      "target": "core_types_firstcontactreport"
     },
     {
       "relation": "references",
@@ -10818,9 +10818,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "app_store_usestore",
-      "confidence_score": 1.0
+      "target": "app_store_usestore"
     },
     {
       "relation": "calls",
@@ -10994,9 +10994,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "app_store_usestore",
-      "confidence_score": 1.0
+      "target": "app_store_usestore"
     },
     {
       "relation": "calls",
@@ -11060,9 +11060,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports",
@@ -11071,9 +11071,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic",
-      "target": "acoustics_sound_hztopitch",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_hztopitch"
     },
     {
       "relation": "imports",
@@ -11082,9 +11082,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic",
-      "target": "acoustics_sound_voice",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_voice"
     },
     {
       "relation": "contains",
@@ -11092,9 +11092,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L188",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic",
-      "target": "audio_mic_clamp",
-      "confidence_score": 1.0
+      "target": "audio_mic_clamp"
     },
     {
       "relation": "contains",
@@ -11102,9 +11102,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L184",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic",
-      "target": "audio_mic_clamp01",
-      "confidence_score": 1.0
+      "target": "audio_mic_clamp01"
     },
     {
       "relation": "contains",
@@ -11112,9 +11112,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic",
-      "target": "audio_mic_miccapture",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture"
     },
     {
       "relation": "contains",
@@ -11122,9 +11122,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic",
-      "target": "audio_mic_micframe",
-      "confidence_score": 1.0
+      "target": "audio_mic_micframe"
     },
     {
       "relation": "imports_from",
@@ -11133,9 +11133,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "audio_mic",
-      "confidence_score": 1.0
+      "target": "audio_mic"
     },
     {
       "relation": "method",
@@ -11143,9 +11143,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L48",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture",
-      "target": "audio_mic_miccapture_active",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_active"
     },
     {
       "relation": "method",
@@ -11153,9 +11153,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture",
-      "target": "audio_mic_miccapture_estimatepitch",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_estimatepitch"
     },
     {
       "relation": "method",
@@ -11163,9 +11163,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L87",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture",
-      "target": "audio_mic_miccapture_read",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_read"
     },
     {
       "relation": "method",
@@ -11173,9 +11173,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L159",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture",
-      "target": "audio_mic_miccapture_spectrum",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_spectrum"
     },
     {
       "relation": "method",
@@ -11183,9 +11183,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L56",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture",
-      "target": "audio_mic_miccapture_start",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_start"
     },
     {
       "relation": "method",
@@ -11193,9 +11193,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L76",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture",
-      "target": "audio_mic_miccapture_stop",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_stop"
     },
     {
       "relation": "imports",
@@ -11204,9 +11204,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "audio_mic_miccapture",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture"
     },
     {
       "relation": "calls",
@@ -11226,9 +11226,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L116",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture_read",
-      "target": "audio_mic_clamp",
-      "confidence_score": 1.0
+      "target": "audio_mic_clamp"
     },
     {
       "relation": "calls",
@@ -11237,9 +11237,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L109",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture_read",
-      "target": "audio_mic_clamp01",
-      "confidence_score": 1.0
+      "target": "audio_mic_clamp01"
     },
     {
       "relation": "calls",
@@ -11248,9 +11248,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L100",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture_read",
-      "target": "audio_mic_miccapture_estimatepitch",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_estimatepitch"
     },
     {
       "relation": "calls",
@@ -11259,9 +11259,9 @@
       "source_file": "src/audio/mic.ts",
       "source_location": "L106",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_mic_miccapture_read",
-      "target": "audio_mic_miccapture_spectrum",
-      "confidence_score": 1.0
+      "target": "audio_mic_miccapture_spectrum"
     },
     {
       "relation": "imports_from",
@@ -11270,9 +11270,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports",
@@ -11281,9 +11281,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth",
-      "target": "acoustics_sound_pitchtohz",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_pitchtohz"
     },
     {
       "relation": "contains",
@@ -11291,9 +11291,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth",
-      "target": "audio_synth_livevoice",
-      "confidence_score": 1.0
+      "target": "audio_synth_livevoice"
     },
     {
       "relation": "contains",
@@ -11301,9 +11301,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L212",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth",
-      "target": "audio_synth_makenoisebuffer",
-      "confidence_score": 1.0
+      "target": "audio_synth_makenoisebuffer"
     },
     {
       "relation": "contains",
@@ -11311,9 +11311,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth",
-      "target": "audio_synth_voiceframe",
-      "confidence_score": 1.0
+      "target": "audio_synth_voiceframe"
     },
     {
       "relation": "contains",
@@ -11321,9 +11321,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth",
-      "target": "audio_synth_voicesynth",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth"
     },
     {
       "relation": "method",
@@ -11331,9 +11331,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L58",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_running",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_running"
     },
     {
       "relation": "method",
@@ -11341,9 +11341,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L91",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_setlistenerradius",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_setlistenerradius"
     },
     {
       "relation": "method",
@@ -11351,9 +11351,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L87",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_setvolume",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_setvolume"
     },
     {
       "relation": "method",
@@ -11361,9 +11361,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_spawn",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_spawn"
     },
     {
       "relation": "method",
@@ -11371,9 +11371,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L66",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_start",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_start"
     },
     {
       "relation": "method",
@@ -11381,9 +11381,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L79",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_stop",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_stop"
     },
     {
       "relation": "method",
@@ -11391,9 +11391,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L198",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_teardown",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_teardown"
     },
     {
       "relation": "method",
@@ -11401,9 +11401,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L100",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth",
-      "target": "audio_synth_voicesynth_update",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_update"
     },
     {
       "relation": "calls",
@@ -11412,9 +11412,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L192",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth_spawn",
-      "target": "audio_synth_voicesynth_start",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_start"
     },
     {
       "relation": "calls",
@@ -11423,9 +11423,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L74",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth_start",
-      "target": "audio_synth_makenoisebuffer",
-      "confidence_score": 1.0
+      "target": "audio_synth_makenoisebuffer"
     },
     {
       "relation": "calls",
@@ -11434,9 +11434,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L81",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth_stop",
-      "target": "audio_synth_voicesynth_teardown",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_teardown"
     },
     {
       "relation": "calls",
@@ -11456,9 +11456,9 @@
       "source_file": "src/audio/synth.ts",
       "source_location": "L117",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "audio_synth_voicesynth_update",
-      "target": "audio_synth_voicesynth_spawn",
-      "confidence_score": 1.0
+      "target": "audio_synth_voicesynth_spawn"
     },
     {
       "relation": "imports_from",
@@ -11937,9 +11937,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports",
@@ -11948,9 +11948,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "acoustics_sound_pitchtohz",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_pitchtohz"
     },
     {
       "relation": "contains",
@@ -11958,9 +11958,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L201",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_firstcontact_drawwave",
-      "confidence_score": 1.0
+      "target": "components_firstcontact_drawwave"
     },
     {
       "relation": "contains",
@@ -11968,9 +11968,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_firstcontact_firstcontact",
-      "confidence_score": 1.0
+      "target": "components_firstcontact_firstcontact"
     },
     {
       "relation": "imports_from",
@@ -11979,9 +11979,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_ui",
-      "confidence_score": 1.0
+      "target": "components_ui"
     },
     {
       "relation": "imports",
@@ -11990,9 +11990,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_ui_bar",
-      "confidence_score": 1.0
+      "target": "components_ui_bar"
     },
     {
       "relation": "imports",
@@ -12001,9 +12001,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_ui_button",
-      "confidence_score": 1.0
+      "target": "components_ui_button"
     },
     {
       "relation": "imports",
@@ -12012,9 +12012,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_ui_fmt",
-      "confidence_score": 1.0
+      "target": "components_ui_fmt"
     },
     {
       "relation": "imports",
@@ -12023,9 +12023,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_ui_section",
-      "confidence_score": 1.0
+      "target": "components_ui_section"
     },
     {
       "relation": "imports",
@@ -12034,9 +12034,9 @@
       "source_file": "src/components/FirstContact.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_firstcontact",
-      "target": "components_ui_stat",
-      "confidence_score": 1.0
+      "target": "components_ui_stat"
     },
     {
       "relation": "imports_from",
@@ -12045,9 +12045,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_firstcontact",
-      "confidence_score": 1.0
+      "target": "components_firstcontact"
     },
     {
       "relation": "calls",
@@ -12067,9 +12067,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_firstcontact_firstcontact",
-      "confidence_score": 1.0
+      "target": "components_firstcontact_firstcontact"
     },
     {
       "relation": "imports_from",
@@ -12078,9 +12078,9 @@
       "source_file": "src/components/Inspector.tsx",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_inspector",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports",
@@ -12089,9 +12089,9 @@
       "source_file": "src/components/Inspector.tsx",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_inspector",
-      "target": "acoustics_sound_pitchtohz",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_pitchtohz"
     },
     {
       "relation": "contains",
@@ -13161,9 +13161,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports",
@@ -13172,9 +13172,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "acoustics_sound_call_names",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call_names"
     },
     {
       "relation": "imports",
@@ -13183,9 +13183,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "acoustics_sound_pitchtohz",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_pitchtohz"
     },
     {
       "relation": "imports_from",
@@ -13194,9 +13194,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "analysis_acoustics",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics"
     },
     {
       "relation": "imports",
@@ -13205,9 +13205,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "analysis_acoustics_callcluster",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_callcluster"
     },
     {
       "relation": "imports",
@@ -13216,9 +13216,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "analysis_acoustics_describecall",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_describecall"
     },
     {
       "relation": "imports_from",
@@ -13227,9 +13227,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_ui",
-      "confidence_score": 1.0
+      "target": "components_ui"
     },
     {
       "relation": "imports",
@@ -13238,9 +13238,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_ui_bar",
-      "confidence_score": 1.0
+      "target": "components_ui_bar"
     },
     {
       "relation": "imports",
@@ -13249,9 +13249,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_ui_button",
-      "confidence_score": 1.0
+      "target": "components_ui_button"
     },
     {
       "relation": "imports",
@@ -13260,9 +13260,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_ui_fmt",
-      "confidence_score": 1.0
+      "target": "components_ui_fmt"
     },
     {
       "relation": "imports",
@@ -13271,9 +13271,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_ui_section",
-      "confidence_score": 1.0
+      "target": "components_ui_section"
     },
     {
       "relation": "imports",
@@ -13282,9 +13282,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L4",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_ui_stat",
-      "confidence_score": 1.0
+      "target": "components_ui_stat"
     },
     {
       "relation": "contains",
@@ -13292,9 +13292,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L374",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_callglyph",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_callglyph"
     },
     {
       "relation": "contains",
@@ -13302,9 +13302,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L475",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_clamp01",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_clamp01"
     },
     {
       "relation": "contains",
@@ -13312,9 +13312,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L240",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_clustercard",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_clustercard"
     },
     {
       "relation": "contains",
@@ -13322,9 +13322,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L365",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_describecontext",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_describecontext"
     },
     {
       "relation": "contains",
@@ -13332,9 +13332,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L369",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_describeresponse",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_describeresponse"
     },
     {
       "relation": "contains",
@@ -13342,9 +13342,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L329",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_interpretation",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_interpretation"
     },
     {
       "relation": "contains",
@@ -13352,9 +13352,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L417",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_spectrogram",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_spectrogram"
     },
     {
       "relation": "contains",
@@ -13362,9 +13362,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L24",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "components_voicepanel_voicepanel",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_voicepanel"
     },
     {
       "relation": "imports_from",
@@ -13373,9 +13373,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel",
-      "target": "core_types",
-      "confidence_score": 1.0
+      "target": "core_types"
     },
     {
       "relation": "calls",
@@ -13395,9 +13395,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L341",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel_interpretation",
-      "target": "components_voicepanel_describecontext",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_describecontext"
     },
     {
       "relation": "calls",
@@ -13406,9 +13406,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L342",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel_interpretation",
-      "target": "components_voicepanel_describeresponse",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_describeresponse"
     },
     {
       "relation": "calls",
@@ -13428,9 +13428,9 @@
       "source_file": "src/components/VoicePanel.tsx",
       "source_location": "L381",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "components_voicepanel_callglyph",
-      "target": "components_voicepanel_clamp01",
-      "confidence_score": 1.0
+      "target": "components_voicepanel_clamp01"
     },
     {
       "relation": "calls",
@@ -14707,9 +14707,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association",
-      "target": "acoustics_association_credittrace",
-      "confidence_score": 1.0
+      "target": "acoustics_association_credittrace"
     },
     {
       "relation": "contains",
@@ -14717,9 +14717,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L45",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association",
-      "target": "acoustics_association_match",
-      "confidence_score": 1.0
+      "target": "acoustics_association_match"
     },
     {
       "relation": "contains",
@@ -14727,9 +14727,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association",
-      "target": "acoustics_association_matchradius",
-      "confidence_score": 1.0
+      "target": "acoustics_association_matchradius"
     },
     {
       "relation": "contains",
@@ -14737,9 +14737,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L66",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association",
-      "target": "acoustics_association_recognise",
-      "confidence_score": 1.0
+      "target": "acoustics_association_recognise"
     },
     {
       "relation": "contains",
@@ -14747,9 +14747,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L56",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association",
-      "target": "acoustics_association_result",
-      "confidence_score": 1.0
+      "target": "acoustics_association_result"
     },
     {
       "relation": "imports_from",
@@ -14758,9 +14758,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports",
@@ -14769,9 +14769,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association",
-      "target": "acoustics_sound_calldistance",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_calldistance"
     },
     {
       "relation": "imports_from",
@@ -14780,9 +14780,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population",
-      "target": "acoustics_association",
-      "confidence_score": 1.0
+      "target": "acoustics_association"
     },
     {
       "relation": "imports_from",
@@ -14791,9 +14791,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_association",
-      "confidence_score": 1.0
+      "target": "acoustics_association"
     },
     {
       "relation": "imports_from",
@@ -14802,9 +14802,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L109",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_association",
-      "confidence_score": 1.0
+      "target": "acoustics_association"
     },
     {
       "relation": "calls",
@@ -14813,9 +14813,9 @@
       "source_file": "src/sim/acoustics/association.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_association_recognise",
-      "target": "acoustics_association_matchradius",
-      "confidence_score": 1.0
+      "target": "acoustics_association_matchradius"
     },
     {
       "relation": "calls",
@@ -14835,9 +14835,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_association_recognise",
-      "confidence_score": 1.0
+      "target": "acoustics_association_recognise"
     },
     {
       "relation": "imports",
@@ -14846,9 +14846,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L109",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_association_recognise",
-      "confidence_score": 1.0
+      "target": "acoustics_association_recognise"
     },
     {
       "relation": "calls",
@@ -14868,9 +14868,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_association_credittrace",
-      "confidence_score": 1.0
+      "target": "acoustics_association_credittrace"
     },
     {
       "relation": "imports",
@@ -14879,9 +14879,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L109",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_association_credittrace",
-      "confidence_score": 1.0
+      "target": "acoustics_association_credittrace"
     },
     {
       "relation": "calls",
@@ -14900,9 +14900,9 @@
       "source_file": "src/sim/acoustics/context.ts",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_context",
-      "target": "acoustics_context_context_features",
-      "confidence_score": 1.0
+      "target": "acoustics_context_context_features"
     },
     {
       "relation": "contains",
@@ -14910,9 +14910,9 @@
       "source_file": "src/sim/acoustics/context.ts",
       "source_location": "L51",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_context",
-      "target": "acoustics_context_response",
-      "confidence_score": 1.0
+      "target": "acoustics_context_response"
     },
     {
       "relation": "contains",
@@ -14920,9 +14920,9 @@
       "source_file": "src/sim/acoustics/context.ts",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_context",
-      "target": "acoustics_context_response_features",
-      "confidence_score": 1.0
+      "target": "acoustics_context_response_features"
     },
     {
       "relation": "imports_from",
@@ -14931,9 +14931,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_context",
-      "confidence_score": 1.0
+      "target": "acoustics_context"
     },
     {
       "relation": "imports_from",
@@ -14942,9 +14942,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population",
-      "target": "acoustics_context",
-      "confidence_score": 1.0
+      "target": "acoustics_context"
     },
     {
       "relation": "imports_from",
@@ -14953,9 +14953,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_context",
-      "confidence_score": 1.0
+      "target": "acoustics_context"
     },
     {
       "relation": "imports_from",
@@ -14964,9 +14964,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_context",
-      "confidence_score": 1.0
+      "target": "acoustics_context"
     },
     {
       "relation": "imports",
@@ -14975,9 +14975,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_context_context_features",
-      "confidence_score": 1.0
+      "target": "acoustics_context_context_features"
     },
     {
       "relation": "imports",
@@ -14986,9 +14986,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_context_response_features",
-      "confidence_score": 1.0
+      "target": "acoustics_context_response_features"
     },
     {
       "relation": "imports",
@@ -14997,9 +14997,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_context_response",
-      "confidence_score": 1.0
+      "target": "acoustics_context_response"
     },
     {
       "relation": "imports",
@@ -15008,9 +15008,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_context_response",
-      "confidence_score": 1.0
+      "target": "acoustics_context_response"
     },
     {
       "relation": "contains",
@@ -15018,9 +15018,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L53",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear",
-      "target": "acoustics_ear_echooffset",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_echooffset"
     },
     {
       "relation": "contains",
@@ -15028,9 +15028,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L25",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear",
-      "target": "acoustics_ear_gaptonorm",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_gaptonorm"
     },
     {
       "relation": "contains",
@@ -15038,9 +15038,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L93",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear",
-      "target": "acoustics_ear_makepercept",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_makepercept"
     },
     {
       "relation": "contains",
@@ -15048,9 +15048,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L63",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear",
-      "target": "acoustics_ear_percept",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_percept"
     },
     {
       "relation": "contains",
@@ -15058,9 +15058,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L34",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear",
-      "target": "acoustics_ear_pushecho",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_pushecho"
     },
     {
       "relation": "contains",
@@ -15068,9 +15068,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L114",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear",
-      "target": "acoustics_ear_resetpercept",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_resetpercept"
     },
     {
       "relation": "re_exports",
@@ -15079,9 +15079,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports_from",
@@ -15090,9 +15090,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population",
-      "target": "acoustics_ear",
-      "confidence_score": 1.0
+      "target": "acoustics_ear"
     },
     {
       "relation": "imports_from",
@@ -15101,9 +15101,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear",
-      "confidence_score": 1.0
+      "target": "acoustics_ear"
     },
     {
       "relation": "calls",
@@ -15112,9 +15112,9 @@
       "source_file": "src/sim/acoustics/ear.ts",
       "source_location": "L44",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_ear_pushecho",
-      "target": "acoustics_ear_gaptonorm",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_gaptonorm"
     },
     {
       "relation": "imports",
@@ -15123,9 +15123,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear_gaptonorm",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_gaptonorm"
     },
     {
       "relation": "calls",
@@ -15145,9 +15145,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear_pushecho",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_pushecho"
     },
     {
       "relation": "calls",
@@ -15167,9 +15167,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear_echooffset",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_echooffset"
     },
     {
       "relation": "calls",
@@ -15178,9 +15178,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L2768",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_echoicsnapshot",
-      "target": "acoustics_ear_echooffset",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_echooffset"
     },
     {
       "relation": "calls",
@@ -15211,9 +15211,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear_percept",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_percept"
     },
     {
       "relation": "references",
@@ -15222,9 +15222,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L223",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation",
-      "target": "acoustics_ear_percept",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_percept"
     },
     {
       "relation": "imports",
@@ -15233,9 +15233,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear_makepercept",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_makepercept"
     },
     {
       "relation": "imports",
@@ -15244,9 +15244,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear_resetpercept",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_resetpercept"
     },
     {
       "relation": "calls",
@@ -15265,9 +15265,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L192",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_attenuation",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_attenuation"
     },
     {
       "relation": "contains",
@@ -15275,9 +15275,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L135",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_auditoryapparatus",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_auditoryapparatus"
     },
     {
       "relation": "contains",
@@ -15285,9 +15285,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_bandfromgenes",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_bandfromgenes"
     },
     {
       "relation": "contains",
@@ -15295,9 +15295,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L205",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_bandresponse",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_bandresponse"
     },
     {
       "relation": "contains",
@@ -15305,9 +15305,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L41",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_call",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call"
     },
     {
       "relation": "contains",
@@ -15315,9 +15315,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L52",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_call_names",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call_names"
     },
     {
       "relation": "contains",
@@ -15325,9 +15325,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L69",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_call_weight_sum",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call_weight_sum"
     },
     {
       "relation": "contains",
@@ -15335,9 +15335,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_call_weights",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call_weights"
     },
     {
       "relation": "contains",
@@ -15345,9 +15345,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L103",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_calldistance",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_calldistance"
     },
     {
       "relation": "contains",
@@ -15355,9 +15355,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L212",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_clamp01",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_clamp01"
     },
     {
       "relation": "contains",
@@ -15365,9 +15365,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L90",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_durationtonorm",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_durationtonorm"
     },
     {
       "relation": "contains",
@@ -15375,9 +15375,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L80",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_hztopitch",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_hztopitch"
     },
     {
       "relation": "contains",
@@ -15385,9 +15385,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L74",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_log_span",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_log_span"
     },
     {
       "relation": "contains",
@@ -15395,9 +15395,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L94",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_normtoduration",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_normtoduration"
     },
     {
       "relation": "contains",
@@ -15405,9 +15405,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L76",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_pitchtohz",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_pitchtohz"
     },
     {
       "relation": "contains",
@@ -15415,9 +15415,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L119",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_vocalapparatus",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_vocalapparatus"
     },
     {
       "relation": "contains",
@@ -15425,9 +15425,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_voice",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_voice"
     },
     {
       "relation": "contains",
@@ -15435,9 +15435,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound",
-      "target": "acoustics_sound_voice_names",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_voice_names"
     },
     {
       "relation": "re_exports",
@@ -15446,9 +15446,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L1060",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports_from",
@@ -15457,9 +15457,9 @@
       "source_file": "src/sim/brain/brain.ts",
       "source_location": "L24",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "brain_brain",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports_from",
@@ -15468,9 +15468,9 @@
       "source_file": "src/sim/genome/phenotype.ts",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "genome_phenotype",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports_from",
@@ -15479,9 +15479,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L12",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports_from",
@@ -15490,9 +15490,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports_from",
@@ -15501,9 +15501,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports_from",
@@ -15512,9 +15512,9 @@
       "source_file": "src/sim/simulation.test.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_test",
-      "target": "acoustics_sound",
-      "confidence_score": 1.0
+      "target": "acoustics_sound"
     },
     {
       "relation": "imports",
@@ -15523,9 +15523,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_sound_voice",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_voice"
     },
     {
       "relation": "imports",
@@ -15534,9 +15534,9 @@
       "source_file": "src/sim/simulation.test.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_test",
-      "target": "acoustics_sound_voice",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_voice"
     },
     {
       "relation": "imports",
@@ -15545,9 +15545,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound_call",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call"
     },
     {
       "relation": "imports",
@@ -15556,9 +15556,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_sound_call",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call"
     },
     {
       "relation": "imports",
@@ -15567,9 +15567,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_sound_call_names",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_call_names"
     },
     {
       "relation": "calls",
@@ -15578,9 +15578,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L77",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound_pitchtohz",
-      "target": "acoustics_sound_clamp01",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_clamp01"
     },
     {
       "relation": "imports",
@@ -15589,9 +15589,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_sound_pitchtohz",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_pitchtohz"
     },
     {
       "relation": "calls",
@@ -15633,9 +15633,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound_pitchtohz",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_pitchtohz"
     },
     {
       "relation": "calls",
@@ -15644,9 +15644,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L82",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound_hztopitch",
-      "target": "acoustics_sound_clamp01",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_clamp01"
     },
     {
       "relation": "imports",
@@ -15655,9 +15655,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound_hztopitch",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_hztopitch"
     },
     {
       "relation": "calls",
@@ -15666,9 +15666,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L91",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound_durationtonorm",
-      "target": "acoustics_sound_clamp01",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_clamp01"
     },
     {
       "relation": "imports",
@@ -15677,9 +15677,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_sound_durationtonorm",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_durationtonorm"
     },
     {
       "relation": "calls",
@@ -15721,9 +15721,9 @@
       "source_file": "src/sim/acoustics/sound.ts",
       "source_location": "L95",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "acoustics_sound_normtoduration",
-      "target": "acoustics_sound_clamp01",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_clamp01"
     },
     {
       "relation": "imports",
@@ -15732,9 +15732,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_sound_normtoduration",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_normtoduration"
     },
     {
       "relation": "calls",
@@ -15765,9 +15765,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "acoustics_sound_calldistance",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_calldistance"
     },
     {
       "relation": "calls",
@@ -15809,9 +15809,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound_calldistance",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_calldistance"
     },
     {
       "relation": "imports",
@@ -15820,9 +15820,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_sound_calldistance",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_calldistance"
     },
     {
       "relation": "calls",
@@ -15842,9 +15842,9 @@
       "source_file": "src/sim/genome/phenotype.ts",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "genome_phenotype",
-      "target": "acoustics_sound_bandfromgenes",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_bandfromgenes"
     },
     {
       "relation": "calls",
@@ -15864,9 +15864,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound_bandfromgenes",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_bandfromgenes"
     },
     {
       "relation": "imports",
@@ -15875,9 +15875,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound_attenuation",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_attenuation"
     },
     {
       "relation": "imports",
@@ -15886,9 +15886,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_sound_attenuation",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_attenuation"
     },
     {
       "relation": "calls",
@@ -15908,9 +15908,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "acoustics_sound_bandresponse",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_bandresponse"
     },
     {
       "relation": "imports",
@@ -15919,9 +15919,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L85",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_sound_bandresponse",
-      "confidence_score": 1.0
+      "target": "acoustics_sound_bandresponse"
     },
     {
       "relation": "calls",
@@ -15940,9 +15940,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L222",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_acousticanalyzer",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer"
     },
     {
       "relation": "contains",
@@ -15950,9 +15950,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L175",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_acousticreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticreport"
     },
     {
       "relation": "contains",
@@ -15960,9 +15960,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L94",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_association",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_association"
     },
     {
       "relation": "contains",
@@ -15970,9 +15970,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L101",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_callcluster",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_callcluster"
     },
     {
       "relation": "contains",
@@ -15980,9 +15980,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L1020",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_clampeffect",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_clampeffect"
     },
     {
       "relation": "contains",
@@ -15990,9 +15990,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L1048",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_describecall",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_describecall"
     },
     {
       "relation": "contains",
@@ -16000,9 +16000,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L157",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_dialectreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_dialectreport"
     },
     {
       "relation": "contains",
@@ -16010,9 +16010,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L1026",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_jensenshannon",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_jensenshannon"
     },
     {
       "relation": "contains",
@@ -16020,9 +16020,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L129",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_sequencereport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_sequencereport"
     },
     {
       "relation": "contains",
@@ -16030,9 +16030,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L140",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_turntakingreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_turntakingreport"
     },
     {
       "relation": "contains",
@@ -16040,9 +16040,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L166",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics",
-      "target": "analysis_acoustics_unknownpattern",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_unknownpattern"
     },
     {
       "relation": "re_exports",
@@ -16051,9 +16051,9 @@
       "source_file": "src/sim/core/types.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "core_types",
-      "target": "analysis_acoustics",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics"
     },
     {
       "relation": "imports_from",
@@ -16062,9 +16062,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "analysis_acoustics",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics"
     },
     {
       "relation": "imports_from",
@@ -16073,9 +16073,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L84",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "analysis_acoustics",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics"
     },
     {
       "relation": "imports",
@@ -16084,9 +16084,9 @@
       "source_file": "src/sim/core/types.ts",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "core_types",
-      "target": "analysis_acoustics_callcluster",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_callcluster"
     },
     {
       "relation": "imports",
@@ -16095,9 +16095,9 @@
       "source_file": "src/sim/core/types.ts",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "core_types",
-      "target": "analysis_acoustics_acousticreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticreport"
     },
     {
       "relation": "imports",
@@ -16106,9 +16106,9 @@
       "source_file": "src/workers/protocol.ts",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "workers_protocol",
-      "target": "analysis_acoustics_acousticreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticreport"
     },
     {
       "relation": "method",
@@ -16116,9 +16116,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L506",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_adopt",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_adopt"
     },
     {
       "relation": "method",
@@ -16126,9 +16126,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L559",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_bumpspecies",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_bumpspecies"
     },
     {
       "relation": "method",
@@ -16136,9 +16136,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L293",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_classify",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_classify"
     },
     {
       "relation": "method",
@@ -16146,9 +16146,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L760",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_contextassociations",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_contextassociations"
     },
     {
       "relation": "method",
@@ -16156,9 +16156,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L539",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_decayspecieshistograms",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_decayspecieshistograms"
     },
     {
       "relation": "method",
@@ -16166,9 +16166,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L886",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_dialectreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_dialectreport"
     },
     {
       "relation": "method",
@@ -16176,9 +16176,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L580",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_noteunknown",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_noteunknown"
     },
     {
       "relation": "method",
@@ -16186,9 +16186,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L315",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_observecall",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_observecall"
     },
     {
       "relation": "method",
@@ -16196,9 +16196,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L483",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_observehearingopportunity",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_observehearingopportunity"
     },
     {
       "relation": "method",
@@ -16206,9 +16206,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L490",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_observeresponse",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_observeresponse"
     },
     {
       "relation": "method",
@@ -16216,9 +16216,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L638",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_report",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_report"
     },
     {
       "relation": "method",
@@ -16226,9 +16226,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L971",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_reset",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_reset"
     },
     {
       "relation": "method",
@@ -16236,9 +16236,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L778",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_responseassociations",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_responseassociations"
     },
     {
       "relation": "method",
@@ -16246,9 +16246,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L553",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_retire",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_retire"
     },
     {
       "relation": "method",
@@ -16256,9 +16256,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L967",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_samplecount",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_samplecount"
     },
     {
       "relation": "method",
@@ -16266,9 +16266,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L801",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_sequencereport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_sequencereport"
     },
     {
       "relation": "method",
@@ -16276,9 +16276,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L852",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_turntakingreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_turntakingreport"
     },
     {
       "relation": "method",
@@ -16286,9 +16286,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L948",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer",
-      "target": "analysis_acoustics_acousticanalyzer_unknownreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_unknownreport"
     },
     {
       "relation": "imports",
@@ -16297,9 +16297,9 @@
       "source_file": "src/sim/cognition.test.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_cognition_test",
-      "target": "analysis_acoustics_acousticanalyzer",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer"
     },
     {
       "relation": "imports",
@@ -16308,9 +16308,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L84",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "analysis_acoustics_acousticanalyzer",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer"
     },
     {
       "relation": "calls",
@@ -16319,9 +16319,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L390",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_observecall",
-      "target": "analysis_acoustics_acousticanalyzer_adopt",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_adopt"
     },
     {
       "relation": "calls",
@@ -16330,9 +16330,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L420",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_observecall",
-      "target": "analysis_acoustics_acousticanalyzer_bumpspecies",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_bumpspecies"
     },
     {
       "relation": "calls",
@@ -16341,9 +16341,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L439",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_observecall",
-      "target": "analysis_acoustics_acousticanalyzer_decayspecieshistograms",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_decayspecieshistograms"
     },
     {
       "relation": "calls",
@@ -16352,9 +16352,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L403",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_observecall",
-      "target": "analysis_acoustics_acousticanalyzer_noteunknown",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_noteunknown"
     },
     {
       "relation": "calls",
@@ -16363,9 +16363,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L358",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_observecall",
-      "target": "analysis_acoustics_acousticanalyzer_retire",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_retire"
     },
     {
       "relation": "calls",
@@ -16374,9 +16374,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L628",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_noteunknown",
-      "target": "analysis_acoustics_acousticanalyzer_adopt",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_adopt"
     },
     {
       "relation": "calls",
@@ -16385,9 +16385,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L627",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_noteunknown",
-      "target": "analysis_acoustics_acousticanalyzer_retire",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_retire"
     },
     {
       "relation": "calls",
@@ -16396,9 +16396,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L681",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_report",
-      "target": "analysis_acoustics_acousticanalyzer_contextassociations",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_contextassociations"
     },
     {
       "relation": "calls",
@@ -16407,9 +16407,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L744",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_report",
-      "target": "analysis_acoustics_acousticanalyzer_dialectreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_dialectreport"
     },
     {
       "relation": "calls",
@@ -16418,9 +16418,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L682",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_report",
-      "target": "analysis_acoustics_acousticanalyzer_responseassociations",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_responseassociations"
     },
     {
       "relation": "calls",
@@ -16429,9 +16429,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L742",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_report",
-      "target": "analysis_acoustics_acousticanalyzer_sequencereport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_sequencereport"
     },
     {
       "relation": "calls",
@@ -16440,9 +16440,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L743",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_report",
-      "target": "analysis_acoustics_acousticanalyzer_turntakingreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_turntakingreport"
     },
     {
       "relation": "calls",
@@ -16451,9 +16451,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L745",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_report",
-      "target": "analysis_acoustics_acousticanalyzer_unknownreport",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_acousticanalyzer_unknownreport"
     },
     {
       "relation": "calls",
@@ -16462,9 +16462,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L771",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_contextassociations",
-      "target": "analysis_acoustics_clampeffect",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_clampeffect"
     },
     {
       "relation": "calls",
@@ -16473,9 +16473,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L789",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_responseassociations",
-      "target": "analysis_acoustics_clampeffect",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_clampeffect"
     },
     {
       "relation": "calls",
@@ -16484,9 +16484,9 @@
       "source_file": "src/sim/analysis/acoustics.ts",
       "source_location": "L909",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "analysis_acoustics_acousticanalyzer_dialectreport",
-      "target": "analysis_acoustics_jensenshannon",
-      "confidence_score": 1.0
+      "target": "analysis_acoustics_jensenshannon"
     },
     {
       "relation": "contains",
@@ -19118,9 +19118,9 @@
       "source_file": "src/sim/core/types.ts",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "core_types",
-      "target": "core_types_audiblevoice",
-      "confidence_score": 1.0
+      "target": "core_types_audiblevoice"
     },
     {
       "relation": "contains",
@@ -19128,9 +19128,9 @@
       "source_file": "src/sim/core/types.ts",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "core_types",
-      "target": "core_types_firstcontactreport",
-      "confidence_score": 1.0
+      "target": "core_types_firstcontactreport"
     },
     {
       "relation": "contains",
@@ -19232,9 +19232,9 @@
       "source_file": "src/workers/protocol.ts",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "workers_protocol",
-      "target": "core_types_firstcontactreport",
-      "confidence_score": 1.0
+      "target": "core_types_firstcontactreport"
     },
     {
       "relation": "imports",
@@ -19243,9 +19243,9 @@
       "source_file": "src/workers/protocol.ts",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "workers_protocol",
-      "target": "core_types_audiblevoice",
-      "confidence_score": 1.0
+      "target": "core_types_audiblevoice"
     },
     {
       "relation": "imports",
@@ -19540,9 +19540,9 @@
       "source_file": "src/sim/events/worldEvents.ts",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "events_worldevents",
-      "target": "events_worldevents_event_noise",
-      "confidence_score": 1.0
+      "target": "events_worldevents_event_noise"
     },
     {
       "relation": "contains",
@@ -20783,9 +20783,9 @@
       "source_file": "src/sim/simulation.test.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_test",
-      "target": "genome_loci_locus",
-      "confidence_score": 1.0
+      "target": "genome_loci_locus"
     },
     {
       "relation": "imports",
@@ -21128,9 +21128,9 @@
       "source_file": "src/sim/simulation.test.ts",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_test",
-      "target": "genome_phenotype_expressinto",
-      "confidence_score": 1.0
+      "target": "genome_phenotype_expressinto"
     },
     {
       "relation": "imports",
@@ -21150,9 +21150,9 @@
       "source_file": "src/sim/simulation.test.ts",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_test",
-      "target": "genome_phenotype_makephenotype",
-      "confidence_score": 1.0
+      "target": "genome_phenotype_makephenotype"
     },
     {
       "relation": "contains",
@@ -21390,9 +21390,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L521",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population_population",
-      "target": "organisms_population_population_callcontextoffset",
-      "confidence_score": 1.0
+      "target": "organisms_population_population_callcontextoffset"
     },
     {
       "relation": "method",
@@ -21420,9 +21420,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L512",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population_population",
-      "target": "organisms_population_population_echoicoffset",
-      "confidence_score": 1.0
+      "target": "organisms_population_population_echoicoffset"
     },
     {
       "relation": "method",
@@ -21510,9 +21510,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L515",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population_population",
-      "target": "organisms_population_population_protooffset",
-      "confidence_score": 1.0
+      "target": "organisms_population_population_protooffset"
     },
     {
       "relation": "method",
@@ -21540,9 +21540,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L518",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population_population",
-      "target": "organisms_population_population_soundslotoffset",
-      "confidence_score": 1.0
+      "target": "organisms_population_population_soundslotoffset"
     },
     {
       "relation": "method",
@@ -21550,9 +21550,9 @@
       "source_file": "src/sim/organisms/population.ts",
       "source_location": "L509",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "organisms_population_population",
-      "target": "organisms_population_population_voiceoffset",
-      "confidence_score": 1.0
+      "target": "organisms_population_population_voiceoffset"
     },
     {
       "relation": "imports",
@@ -21645,9 +21645,9 @@
       "source_file": "src/sim/simulation.test.ts",
       "source_location": "L281",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_test",
-      "target": "sim_simulation_test_anyalive",
-      "confidence_score": 1.0
+      "target": "sim_simulation_test_anyalive"
     },
     {
       "relation": "contains",
@@ -21728,9 +21728,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "acoustics_ear_echo_gap",
-      "confidence_score": 1.0
+      "target": "acoustics_ear_echo_gap"
     },
     {
       "relation": "imports",
@@ -21759,9 +21759,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L2759",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "sim_simulation_echoicsnapshot",
-      "confidence_score": 1.0
+      "target": "sim_simulation_echoicsnapshot"
     },
     {
       "relation": "contains",
@@ -21779,9 +21779,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L155",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "sim_simulation_externalsound",
-      "confidence_score": 1.0
+      "target": "sim_simulation_externalsound"
     },
     {
       "relation": "contains",
@@ -21799,9 +21799,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L2787",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation",
-      "target": "sim_simulation_soundmemorysnapshot",
-      "confidence_score": 1.0
+      "target": "sim_simulation_soundmemorysnapshot"
     },
     {
       "relation": "imports_from",
@@ -21885,9 +21885,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1512",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation",
-      "target": "sim_simulation_simulation_audiblevoices",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation_audiblevoices"
     },
     {
       "relation": "method",
@@ -21925,9 +21925,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1464",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation",
-      "target": "sim_simulation_simulation_emitexternalsound",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation_emitexternalsound"
     },
     {
       "relation": "method",
@@ -21955,9 +21955,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1342",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation",
-      "target": "sim_simulation_simulation_finalizecall",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation_finalizecall"
     },
     {
       "relation": "method",
@@ -21965,9 +21965,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1403",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation",
-      "target": "sim_simulation_simulation_finalizeheard",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation_finalizeheard"
     },
     {
       "relation": "method",
@@ -21995,9 +21995,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1488",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation",
-      "target": "sim_simulation_simulation_firstcontact",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation_firstcontact"
     },
     {
       "relation": "method",
@@ -22368,9 +22368,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1072",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation_steporganism",
-      "target": "sim_simulation_simulation_finalizecall",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation_finalizecall"
     },
     {
       "relation": "calls",
@@ -22379,9 +22379,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L750",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation_steporganism",
-      "target": "sim_simulation_simulation_finalizeheard",
-      "confidence_score": 1.0
+      "target": "sim_simulation_simulation_finalizeheard"
     },
     {
       "relation": "calls",
@@ -22434,9 +22434,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1358",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation_finalizecall",
-      "target": "sim_simulation_clamp",
-      "confidence_score": 1.0
+      "target": "sim_simulation_clamp"
     },
     {
       "relation": "calls",
@@ -22445,9 +22445,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L1418",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation_finalizeheard",
-      "target": "sim_simulation_clamp",
-      "confidence_score": 1.0
+      "target": "sim_simulation_clamp"
     },
     {
       "relation": "calls",
@@ -22577,9 +22577,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L2364",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation_inspect",
-      "target": "sim_simulation_echoicsnapshot",
-      "confidence_score": 1.0
+      "target": "sim_simulation_echoicsnapshot"
     },
     {
       "relation": "calls",
@@ -22588,9 +22588,9 @@
       "source_file": "src/sim/simulation.ts",
       "source_location": "L2365",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "sim_simulation_simulation_inspect",
-      "target": "sim_simulation_soundmemorysnapshot",
-      "confidence_score": 1.0
+      "target": "sim_simulation_soundmemorysnapshot"
     },
     {
       "relation": "references",
@@ -23667,9 +23667,9 @@
       "source_file": "src/workers/simWorker.ts",
       "source_location": "L35",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "workers_simworker",
-      "target": "workers_simworker_listener",
-      "confidence_score": 1.0
+      "target": "workers_simworker_listener"
     },
     {
       "relation": "contains",
@@ -24141,9 +24141,9 @@
       "source_file": "CLAUDE.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "claude",
-      "target": "claude_graphify",
-      "confidence_score": 1.0
+      "target": "claude_graphify"
     },
     {
       "relation": "conceptually_related_to",
@@ -24171,9 +24171,9 @@
       "source_file": "README.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme",
-      "target": "readme_life_digital_evolution_observatory",
-      "confidence_score": 1.0
+      "target": "readme_life_digital_evolution_observatory"
     },
     {
       "relation": "references",
@@ -24201,9 +24201,9 @@
       "source_file": "README.md",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_architecture",
-      "confidence_score": 1.0
+      "target": "readme_architecture"
     },
     {
       "relation": "contains",
@@ -24211,9 +24211,9 @@
       "source_file": "README.md",
       "source_location": "L561",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_current_state_and_what_is_next",
-      "confidence_score": 1.0
+      "target": "readme_current_state_and_what_is_next"
     },
     {
       "relation": "contains",
@@ -24221,9 +24221,9 @@
       "source_file": "README.md",
       "source_location": "L324",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_derived_observation",
-      "confidence_score": 1.0
+      "target": "readme_derived_observation"
     },
     {
       "relation": "contains",
@@ -24231,9 +24231,9 @@
       "source_file": "README.md",
       "source_location": "L412",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_determinism",
-      "confidence_score": 1.0
+      "target": "readme_determinism"
     },
     {
       "relation": "contains",
@@ -24241,9 +24241,9 @@
       "source_file": "README.md",
       "source_location": "L627",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_development_tools",
-      "confidence_score": 1.0
+      "target": "readme_development_tools"
     },
     {
       "relation": "contains",
@@ -24251,9 +24251,9 @@
       "source_file": "README.md",
       "source_location": "L544",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_emergent_behaviour_to_watch_for",
-      "confidence_score": 1.0
+      "target": "readme_emergent_behaviour_to_watch_for"
     },
     {
       "relation": "contains",
@@ -24261,9 +24261,9 @@
       "source_file": "README.md",
       "source_location": "L366",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_experiments_on_forks",
-      "confidence_score": 1.0
+      "target": "readme_experiments_on_forks"
     },
     {
       "relation": "contains",
@@ -24271,9 +24271,9 @@
       "source_file": "README.md",
       "source_location": "L126",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_how_it_works",
-      "confidence_score": 1.0
+      "target": "readme_how_it_works"
     },
     {
       "relation": "contains",
@@ -24281,9 +24281,9 @@
       "source_file": "README.md",
       "source_location": "L493",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_measured_behaviour",
-      "confidence_score": 1.0
+      "target": "readme_measured_behaviour"
     },
     {
       "relation": "contains",
@@ -24291,9 +24291,9 @@
       "source_file": "README.md",
       "source_location": "L437",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_reading_the_screen",
-      "confidence_score": 1.0
+      "target": "readme_reading_the_screen"
     },
     {
       "relation": "contains",
@@ -24301,9 +24301,9 @@
       "source_file": "README.md",
       "source_location": "L58",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_running_it",
-      "confidence_score": 1.0
+      "target": "readme_running_it"
     },
     {
       "relation": "contains",
@@ -24311,9 +24311,9 @@
       "source_file": "README.md",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_life_digital_evolution_observatory",
-      "target": "readme_what_is_in_it",
-      "confidence_score": 1.0
+      "target": "readme_what_is_in_it"
     },
     {
       "relation": "contains",
@@ -24321,9 +24321,9 @@
       "source_file": "README.md",
       "source_location": "L101",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_architecture",
-      "target": "readme_directory_map",
-      "confidence_score": 1.0
+      "target": "readme_directory_map"
     },
     {
       "relation": "contains",
@@ -24331,9 +24331,9 @@
       "source_file": "README.md",
       "source_location": "L205",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_communication",
-      "confidence_score": 1.0
+      "target": "readme_communication"
     },
     {
       "relation": "contains",
@@ -24341,9 +24341,9 @@
       "source_file": "README.md",
       "source_location": "L177",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_energy_economy",
-      "confidence_score": 1.0
+      "target": "readme_energy_economy"
     },
     {
       "relation": "contains",
@@ -24351,9 +24351,9 @@
       "source_file": "README.md",
       "source_location": "L128",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_genome",
-      "confidence_score": 1.0
+      "target": "readme_genome"
     },
     {
       "relation": "contains",
@@ -24361,9 +24361,9 @@
       "source_file": "README.md",
       "source_location": "L260",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_kin_recognition",
-      "confidence_score": 1.0
+      "target": "readme_kin_recognition"
     },
     {
       "relation": "contains",
@@ -24371,9 +24371,9 @@
       "source_file": "README.md",
       "source_location": "L194",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_memory",
-      "confidence_score": 1.0
+      "target": "readme_memory"
     },
     {
       "relation": "contains",
@@ -24381,9 +24381,9 @@
       "source_file": "README.md",
       "source_location": "L142",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_neural_network",
-      "confidence_score": 1.0
+      "target": "readme_neural_network"
     },
     {
       "relation": "contains",
@@ -24391,9 +24391,9 @@
       "source_file": "README.md",
       "source_location": "L297",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_reproduction_and_speciation",
-      "confidence_score": 1.0
+      "target": "readme_reproduction_and_speciation"
     },
     {
       "relation": "contains",
@@ -24401,9 +24401,9 @@
       "source_file": "README.md",
       "source_location": "L165",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_senses",
-      "confidence_score": 1.0
+      "target": "readme_senses"
     },
     {
       "relation": "contains",
@@ -24411,9 +24411,9 @@
       "source_file": "README.md",
       "source_location": "L276",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_social_learning_and_culture",
-      "confidence_score": 1.0
+      "target": "readme_social_learning_and_culture"
     },
     {
       "relation": "contains",
@@ -24421,9 +24421,9 @@
       "source_file": "README.md",
       "source_location": "L315",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_how_it_works",
-      "target": "readme_world_events",
-      "confidence_score": 1.0
+      "target": "readme_world_events"
     },
     {
       "relation": "rationale_for",
@@ -24531,9 +24531,9 @@
       "source_file": "README.md",
       "source_location": "L381",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_experiments_on_forks",
-      "target": "readme_a_worked_result",
-      "confidence_score": 1.0
+      "target": "readme_a_worked_result"
     },
     {
       "relation": "rationale_for",
@@ -24581,9 +24581,9 @@
       "source_file": "README.md",
       "source_location": "L475",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_reading_the_screen",
-      "target": "readme_first_contact",
-      "confidence_score": 1.0
+      "target": "readme_first_contact"
     },
     {
       "relation": "contains",
@@ -24591,9 +24591,9 @@
       "source_file": "README.md",
       "source_location": "L464",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "readme_reading_the_screen",
-      "target": "readme_listening_to_it",
-      "confidence_score": 1.0
+      "target": "readme_listening_to_it"
     },
     {
       "relation": "rationale_for",

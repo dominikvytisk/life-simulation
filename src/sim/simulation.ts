@@ -23,6 +23,7 @@
  */
 import { type SimConfig, DEFAULT_CONFIG } from './core/config';
 import { Rng } from './core/rng';
+import { senseNoise } from './core/senseNoise';
 import { SpatialHash } from './core/spatialHash';
 import { World } from './world/world';
 import { KIN_TAG_LENGTH, Population } from './organisms/population';
@@ -73,7 +74,32 @@ import { SpeciesRegistry } from './species/speciation';
 import { EventKind, EventLog } from './events/eventLog';
 import { WorldEventSystem, type WorldEventSpec } from './events/worldEvents';
 import { History, type SeriesKey } from '../analytics/history';
-import { encodeMemory, makeRecall, recallInto, type Recall } from './memory/memory';
+import {
+  ENCODE_THRESHOLD,
+  MEMORY_CONTEXT_DIM,
+  consolidateMemory,
+  encodeMemory,
+  makeRecall,
+  recallInto,
+  reinforceRecall,
+  type Recall,
+} from './memory/memory';
+import {
+  MODEL_FEATURES,
+  MODEL_ROWS,
+  MODEL_STRIDE,
+  buildFeatures,
+  learn as fitModel,
+  makePredictionError,
+  makeRolloutResult,
+  noteExposure,
+  predictInto,
+  uncertainty,
+  type PredictionError,
+  type RolloutResult,
+} from './cognition/worldModel';
+import { REPLAY_DEPTH, REPLAY_STRIDE, pushReplay, replayOne } from './cognition/consolidation';
+import { deliberate, makePlanResult, type PlanResult } from './cognition/planning';
 import {
   accumulate as accumulateNiche,
   describe as describeNiche,
@@ -110,6 +136,7 @@ import { PROTO_STRIDE, creditTrace, recognise } from './acoustics/association';
 import { CALL_CONTEXT_DIM, RESPONSE_DIM, Response } from './acoustics/context';
 import { CultureAnalyzer, type CultureReport } from './analysis/culture';
 import { Chronicle } from './analysis/chronicle';
+import { CognitionLedger, analyseCognition, type CognitionReport } from './analysis/cognition';
 import {
   SNAPSHOT_STRIDE,
   SnapshotFlag,
@@ -163,11 +190,12 @@ export interface ExternalSound {
 /** Soma drift beyond this counts as the organism having invented something. */
 const INNOVATION_THRESHOLD = 12;
 /**
- * Save format. Version 3 added the vocal and auditory apparatus, which changed
- * both the genome length and the brain layout — a version 2 world cannot be
- * resumed into this build, and `restore` refuses rather than corrupting one.
+ * Save format. Version 4 added the predictive apparatus: eight more loci, eight
+ * more sensory channels, and a per-organism world model. All three change the
+ * strides a save is laid out in, so an older payload does not describe this
+ * world at all and `restore` refuses rather than corrupting one.
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export class Simulation {
   cfg: SimConfig;
@@ -182,6 +210,7 @@ export class Simulation {
   acoustics = new AcousticAnalyzer();
   culture = new CultureAnalyzer();
   chronicle = new Chronicle();
+  cognitionLedger = new CognitionLedger();
   mutationTally: MutationTally = makeMutationTally();
 
   tick = 0;
@@ -192,6 +221,7 @@ export class Simulation {
   private killsThisTick = 0;
   private sharesThisTick = 0;
   private callsThisTick = 0;
+  private toxinDeathsThisTick = 0;
   // Rolling accumulators over the stats window.
   private birthsWindow = 0;
   private deathsWindow = 0;
@@ -203,6 +233,12 @@ export class Simulation {
   totalImitations = 0;
   totalCalls = 0;
   private callsWindow = 0;
+  private modelStepsWindow = 0;
+  private planStepsWindow = 0;
+  private vicariousWindow = 0;
+  private toxinDeathsWindow = 0;
+  totalToxinDeaths = 0;
+  totalVicarious = 0;
 
   /**
    * First-contact bookkeeping. Two running means of how hard listeners closed
@@ -229,6 +265,19 @@ export class Simulation {
   externalSounds: ExternalSound[] = [];
   private nextExternalId = 1;
   private recall: Recall = makeRecall();
+  // ---- cognition scratch, allocated once ----
+  private mFeat = new Float32Array(MODEL_FEATURES);
+  private mPred = new Float32Array(MODEL_ROWS);
+  private mImagined = new Float32Array(MAX_HIDDEN);
+  private mCandidate = new Float32Array(OUTPUT_COUNT);
+  private mChosen = new Float32Array(OUTPUT_COUNT);
+  private mErr: PredictionError = makePredictionError();
+  private mRollout: RolloutResult = makeRolloutResult();
+  private mPlan: PlanResult = makePlanResult();
+  /** How many world-model steps the whole population took this tick. */
+  private modelStepsThisTick = 0;
+  private planStepsThisTick = 0;
+  private vicariousThisTick = 0;
   private candidates = new Int32Array(MAX_NEIGHBOR_CANDIDATES);
   private liveIndex: Int32Array;
   private liveCount = 0;
@@ -389,6 +438,10 @@ export class Simulation {
     this.killsThisTick = 0;
     this.sharesThisTick = 0;
     this.callsThisTick = 0;
+    this.toxinDeathsThisTick = 0;
+    this.modelStepsThisTick = 0;
+    this.planStepsThisTick = 0;
+    this.vicariousThisTick = 0;
     this.pendingDeathCount = 0;
 
     this.worldEvents.update(cfg);
@@ -432,6 +485,10 @@ export class Simulation {
 
     this.tick++;
     this.callsWindow += this.callsThisTick;
+    this.modelStepsWindow += this.modelStepsThisTick;
+    this.planStepsWindow += this.planStepsThisTick;
+    this.vicariousWindow += this.vicariousThisTick;
+    this.toxinDeathsWindow += this.toxinDeathsThisTick;
     this.birthsWindow += this.birthsThisTick;
     this.deathsWindow += this.deathsThisTick;
     this.killsWindow += this.killsThisTick;
@@ -482,19 +539,43 @@ export class Simulation {
     const inWater = depth > 0;
     inputs[Input.WaterDepth] = Math.min(1, depth * 6);
 
+    // Everything distal is read through an instrument of finite quality. A
+    // blunt sense is not merely short-ranged: what it does report, it reports
+    // wrong, and by an amount that changes every tick. This is the term that
+    // finally makes acuity worth its upkeep — and the reason a world model has
+    // something to do, since a noisy channel averaged over many samples is
+    // better than any single reading of it.
+    const blur = cfg.perceptualNoise * (1 - pop.visionAcuity[i]);
     world.gradient(world.elevation, px, py, this.grad);
-    inputs[Input.SlopeX] = clamp((this.grad.x * cosH + this.grad.y * sinH) * 40, -1, 1);
-    inputs[Input.SlopeY] = clamp((-this.grad.x * sinH + this.grad.y * cosH) * 40, -1, 1);
+    inputs[Input.SlopeX] = clamp(
+      (this.grad.x * cosH + this.grad.y * sinH) * 40 + senseNoise(i, this.tick, 1) * blur,
+      -1,
+      1,
+    );
+    inputs[Input.SlopeY] = clamp(
+      (-this.grad.x * sinH + this.grad.y * cosH) * 40 + senseNoise(i, this.tick, 2) * blur,
+      -1,
+      1,
+    );
     inputs[Input.Light] = world.light * 2 - 1;
 
     const veg = world.vegetation[ci];
-    inputs[Input.Vegetation] = Math.min(1, veg * 2.5);
+    inputs[Input.Vegetation] = clamp(veg * 2.5 + senseNoise(i, this.tick, 3) * blur, 0, 1);
     world.gradient(world.vegetation, px, py, this.grad);
     const gvx = this.grad.x * 30;
     const gvy = this.grad.y * 30;
-    inputs[Input.VegGradX] = clamp(gvx * cosH + gvy * sinH, -1, 1);
-    inputs[Input.VegGradY] = clamp(-gvx * sinH + gvy * cosH, -1, 1);
+    inputs[Input.VegGradX] = clamp(gvx * cosH + gvy * sinH + senseNoise(i, this.tick, 4) * blur, -1, 1);
+    inputs[Input.VegGradY] = clamp(-gvx * sinH + gvy * cosH + senseNoise(i, this.tick, 5) * blur, -1, 1);
     inputs[Input.Carrion] = Math.min(1, world.carrion[ci] * 0.05);
+
+    // How the growth here looks, and how much of something unnameable has built
+    // up inside. The first is a plain visible property with no consequences of
+    // its own; the second is an interoceptive signal that arrives long after the
+    // meal that caused it. Nothing connects them except the world, and only an
+    // organism that models the world will ever connect them either.
+    const flora = world.flora[ci];
+    inputs[Input.FloraTrait] = clamp(flora * 2 - 1 + senseNoise(i, this.tick, 6) * blur * 2, -1, 1);
+    inputs[Input.ToxinLoad] = Math.min(1, pop.toxinLoad[i]);
 
     const sens = pop.signalSensitivity[i];
     const s0 = world.sample(world.signal0, px, py);
@@ -508,17 +589,28 @@ export class Simulation {
     inputs[Input.PheromoneAGradY] = clamp(-gsx * sinH + gsy * cosH, -1, 1);
 
     // ---- episodic memory ----
+    // Recall is gated by how much the organism's current recurrent state
+    // resembles the one each memory was laid down in. That state is the only
+    // persistent internal variable an organism has that is not about its body,
+    // and nobody — including this file — knows what any of its units mean. An
+    // organism whose BrainContext evolved to zero has no such state, no gate,
+    // and remembers places flatly; one that has it remembers places *as
+    // encountered in a kind of moment*, which is what makes recalling the wrong
+    // thing possible as well as the right one.
     const memSlots = pop.memorySlots[i];
+    const memOff = pop.memoryOffset(i);
+    const ctxOff = pop.contextOffset(i);
+    const ctxDims = Math.min(pop.contextSize[i], MEMORY_CONTEXT_DIM);
     recallInto(
-      pop.memX,
-      pop.memY,
-      pop.memValence,
-      pop.memStrength,
-      pop.memoryOffset(i),
+      pop.mem,
+      memOff,
       memSlots,
       px,
       py,
       pop.memoryDecay[i],
+      pop.context,
+      ctxOff,
+      ctxDims,
       this.recall,
     );
     inputs[Input.MemoryValueHere] = clamp(this.recall.valueHere, -1, 1);
@@ -814,8 +906,8 @@ export class Simulation {
       const ex = (dx * cosH + dy * sinH) / d;
       const ey = (-dx * sinH + dy * cosH) / d;
       const prox = Math.max(0, 1 - d / vision);
-      inputs[Input.NeighborDX] = ex;
-      inputs[Input.NeighborDY] = ey;
+      inputs[Input.NeighborDX] = clamp(ex + senseNoise(i, this.tick, 7) * blur, -1, 1);
+      inputs[Input.NeighborDY] = clamp(ey + senseNoise(i, this.tick, 8) * blur, -1, 1);
       inputs[Input.NeighborProximity] = prox * 2 - 1;
       inputs[Input.NeighborSizeRatio] = clamp(pop.radius[nearest] / pop.radius[i] - 1, -1, 1);
       const gd = geneticDistance(
@@ -856,6 +948,19 @@ export class Simulation {
     inputs[Input.Pain] = Math.min(1, pop.pain[i]) * 2 - 1;
     inputs[Input.Reward] = clamp(pop.reward[i], -1, 1);
 
+    // What the organism knows about its own knowing. All six are one model step
+    // stale — the current step has not been settled yet — which is the ordinary
+    // situation for interoception and costs nothing to be honest about. None of
+    // them instructs anything: they are inputs, and a lineage that evolves
+    // zero weights onto all six is behaving exactly as it did before any of
+    // this existed.
+    inputs[Input.PredictionError] = Math.min(1, pop.predError[i]);
+    inputs[Input.ModelConfidence] = pop.modelConfidence[i] * 2 - 1;
+    inputs[Input.LearningProgress] = clamp(pop.learningProgress[i] * 8, -1, 1);
+    inputs[Input.Novelty] = pop.novelty[i] * 2 - 1;
+    inputs[Input.IntrinsicDrive] = clamp(pop.intrinsic[i], -1, 1);
+    inputs[Input.PlanAdvantage] = clamp(pop.planAdvantage[i], -1, 1);
+
     // ---- think ----
     const hiddenSize = pop.hiddenSize[i];
     const contextSize = pop.contextSize[i];
@@ -888,6 +993,68 @@ export class Simulation {
     let carrionGain = 0;
     let preyGain = 0;
     let attacked = 0;
+
+    // ---- imagine, then act ----
+    // The network has proposed something. What happens to that proposal depends
+    // entirely on what this lineage evolved: for most organisms nothing at all,
+    // and the proposal is carried out unexamined. For a few, it is first checked
+    // against a private model of what tends to follow what — and if that model
+    // is wrong, which early in any life it is, the check makes the decision
+    // worse. Deliberating badly is a real way to die here.
+    const modelling = cfg.worldModelEnabled && pop.predictionRate[i] > 0;
+    // The model runs slower than the brain, staggered by slot so the population
+    // does not all deliberate on the same tick. One model step therefore spans
+    // several decisions, which is both what makes it affordable and what makes
+    // a delayed consequence land inside a single prediction.
+    const modelStep = modelling && (i + this.tick) % cfg.modelInterval === 0;
+    if (modelStep) {
+      energyDelta -= this.settlePrediction(i, hiddenSize);
+      this.modelStepsThisTick++;
+    }
+    if (cfg.planningEnabled && modelling && pop.planHorizon[i] > 0 && pop.planBudget[i] > 0) {
+      if (modelStep) {
+        deliberate(
+          pop.model,
+          pop.modelOffset(i),
+          pop.modelExposure,
+          pop.modelFeatureOffset(i),
+          this.hidden,
+          0,
+          out,
+          hiddenSize,
+          pop.planHorizon[i],
+          pop.planBudget[i],
+          cfg.intrinsicEnabled ? pop.curiosity[i] : 0,
+          cfg.planJitterBase + cfg.planJitterCuriosity * pop.curiosity[i],
+          this.rng,
+          this.mFeat,
+          this.mPred,
+          this.mImagined,
+          this.mCandidate,
+          this.mChosen,
+          this.mRollout,
+          this.mPlan,
+        );
+        // Kept as a departure from instinct rather than as an action, so it
+        // survives the ticks in between while the senses keep changing
+        // underneath it. Deliberating every tick is neither affordable here nor
+        // plausible anywhere.
+        const po = pop.planOffset(i);
+        for (let o = 0; o < OUTPUT_COUNT; o++) pop.planDelta[po + o] = this.mChosen[o] - out[o];
+        pop.planAdvantage[i] = this.mPlan.advantage;
+        energyDelta -= cfg.planStepCost * this.mPlan.steps;
+        this.planStepsThisTick += this.mPlan.steps;
+      }
+      const po = pop.planOffset(i);
+      for (let o = 0; o < OUTPUT_COUNT; o++) {
+        const v = out[o] + pop.planDelta[po + o];
+        out[o] = v > 1 ? 1 : v < -1 ? -1 : v;
+        pop.planDelta[po + o] *= 0.75;
+      }
+    }
+    // The expectation is committed only once the action is final, so what the
+    // organism is held to is a prediction about what it actually did.
+    if (modelStep) this.recordPrediction(i, hiddenSize, out);
 
     const rest = Math.max(0, out[Output.Rest]);
     const effort = 1 - rest * 0.85;
@@ -954,6 +1121,12 @@ export class Simulation {
         plantGain = take * cfg.vegetationEnergyDensity * plantEff;
         energyDelta += plantGain;
         pop.plantEaten[i] += take;
+        // The energy arrives now. Whatever else came with it arrives hundreds
+        // of ticks from now, in proportion to how much the local growth carries
+        // — a quantity nothing about the plant announces and no sense reports.
+        // This is the only place in the simulation where doing the obviously
+        // right thing is, sometimes, the wrong thing.
+        pop.toxinLoad[i] += take * world.toxicityAt(ci, cfg) * cfg.toxinPotency;
         flags |= SnapshotFlag.Eating;
       }
       if (world.carrion[ci] > 0 && meatEff > 0.01) {
@@ -1123,6 +1296,37 @@ export class Simulation {
       }
     }
 
+    // ---- consolidation ----
+    // Resting is when there is spare capacity to go back over recent
+    // experience. It is also time not spent foraging, and the replay costs
+    // energy on top of that, so a lineage only evolves to do it where one pass
+    // over an experience is genuinely not enough to extract what is in it.
+    const consolidation = pop.consolidation[i];
+    if (modelling && consolidation > 0.02 && rest > cfg.restThreshold) {
+      const replayed = replayOne(
+        pop.replay,
+        pop.replayOffset(i),
+        (this.tick + i) % REPLAY_DEPTH,
+        pop.model,
+        pop.modelOffset(i),
+        hiddenSize,
+        pop.predictionRate[i] * consolidation,
+        pop.modelDecay[i],
+        this.mFeat,
+        this.mPred,
+        this.mErr,
+      );
+      if (replayed) {
+        energyDelta -= cfg.replayCost * consolidation;
+        if (pop.consolidations[i] < 65535) pop.consolidations[i]++;
+      }
+      // Housekeeping on the memory store at the same time: what has proven
+      // useful is strengthened, what has not is let go. Total held confidence
+      // does not rise, so this is a decision about which memories to keep and
+      // not a way to keep more of them.
+      consolidateMemory(pop.mem, memOff, memSlots, consolidation);
+    }
+
     // ---- reproduction ----
     const mature = pop.age[i] >= pop.maturationAge[i];
     if (!mature) flags |= SnapshotFlag.Juvenile;
@@ -1166,6 +1370,19 @@ export class Simulation {
       pop.health[i] -= cfg.drowningDamage * (0.5 - pop.waterAffinity[i]) * 2 * dt;
     }
 
+    // A dose taken hundreds of ticks ago, arriving now. The load clears at a
+    // genetic rate, so a lineage can answer this either by learning which growth
+    // carries it or by evolving to process it — two entirely different
+    // solutions to one problem, and nothing here prefers either. A lineage can
+    // also simply not answer it, and many will not.
+    const toxin = pop.toxinLoad[i];
+    if (toxin > 0) {
+      pop.toxinLoad[i] = toxin * (1 - pop.toxinClearance[i]);
+      if (toxin > cfg.toxinThreshold) {
+        pop.health[i] -= (toxin - cfg.toxinThreshold) * cfg.toxinDamage;
+      }
+    }
+
     pop.energy[i] += energyDelta;
     if (pop.energy[i] > maxE) pop.energy[i] = maxE;
     if (pop.energy[i] <= 0) {
@@ -1185,11 +1402,24 @@ export class Simulation {
     const netGain = energyDelta / (maxE * 0.02 + 1);
     pop.reward[i] = pop.reward[i] * 0.9 + netGain * 0.1;
     pop.pain[i] *= 0.92;
+    // Banked for the model, which is asked to predict the reward arriving over
+    // a whole model step rather than over one tick. That is precisely what
+    // makes a consequence that lands several ticks after its cause something a
+    // one-step predictor can get hold of at all.
+    pop.modelRewardAccum[i] += clamp(netGain, -2, 2);
     // Reward is the change in wellbeing, not a designer-supplied score: energy
     // gained minus pain felt. What it means to "do well" is left to the energy
     // economy, and it is the same signal for every kind of learning here.
-    const learnSignal = clamp(pop.reward[i] * 3 - pop.pain[i], -1, 1);
-    const plasticity = pop.plasticity[i];
+    // Intrinsic value enters here and nowhere else. It is a separate term from
+    // reward, not a redefinition of it: weighted by a gene that is usually near
+    // zero and by a global gain well under one, so no organism can live on
+    // curiosity. Whatever it finds interesting still has to be compatible with
+    // eating, and an organism that resolves that trade-off badly dies of it.
+    const intrinsic = cfg.intrinsicEnabled ? pop.intrinsic[i] * cfg.intrinsicGain : 0;
+    const learnSignal = clamp(pop.reward[i] * 3 - pop.pain[i] + intrinsic, -1, 1);
+    // Lifetime learning can be switched off wholesale for a control arm. It is
+    // an experimental instrument and nothing in the simulation ever touches it.
+    const plasticity = cfg.learningEnabled ? pop.plasticity[i] : 0;
     if (plasticity > 0) {
       const drift = hebbianUpdate(
         pop.plastic,
@@ -1216,7 +1446,7 @@ export class Simulation {
     // the only place a sound acquires any value at all, and the value is
     // private to this one animal: two organisms that heard the same call after
     // different outcomes will disagree about it permanently.
-    const protoSlots = pop.soundPrototypes[i];
+    const protoSlots = cfg.learningEnabled ? pop.soundPrototypes[i] : 0;
     if (protoSlots > 0) {
       creditTrace(
         pop.soundValence,
@@ -1238,16 +1468,24 @@ export class Simulation {
     if (memSlots > 0) {
       const valence = clamp(netGain * 2 - pop.pain[i] * 1.5, -1.5, 1.5);
       encodeMemory(
-        pop.memX,
-        pop.memY,
-        pop.memValence,
-        pop.memStrength,
-        pop.memoryOffset(i),
+        pop.mem,
+        memOff,
         memSlots,
         px,
         py,
         valence,
+        pop.context,
+        ctxOff,
+        ctxDims,
+        false,
       );
+      // Whatever was already being recalled here gets credited with the moment
+      // having been notable at all. A memory reliably present when something
+      // significant happens becomes hard to displace and slow to fade; one that
+      // never is, goes first. Nothing checks whether it was *right* — a warning
+      // that keeps being present at bad moments should become important, and
+      // does.
+      reinforceRecall(pop.mem, memOff, memSlots, px, py, Math.abs(valence));
     }
 
     this.obsNeighbours[i] = density;
@@ -1322,11 +1560,141 @@ export class Simulation {
 
     // ---- death ----
     if (pop.health[i] <= 0 || pop.age[i] >= pop.lifespan[i]) {
+      // An attribution, not a cause of death: this organism died while carrying
+      // a load above the harmless threshold. Something else may well have
+      // finished it. The number is reported as what it is.
+      if (pop.health[i] <= 0 && pop.toxinLoad[i] > cfg.toxinThreshold) {
+        this.toxinDeathsThisTick++;
+      }
       this.markDead(i);
       return;
     }
 
     this.writeSnapshotEntry(i, flags);
+  }
+
+  // ------------------------------------------------------------- cognition
+
+  /**
+   * Settle the expectation this organism committed to one model step ago:
+   * compare it against what actually happened, fit the model to the gap, and
+   * update everything it knows about how well it understands its own world.
+   * Returns the energy that cost.
+   *
+   * Nothing in here can see anything the organism could not. The target is its
+   * own next internal state and its own banked reward, and the features are its
+   * own previous internal state and the action it chose.
+   */
+  private settlePrediction(i: number, hiddenSize: number): number {
+    const pop = this.pop;
+    const cfg = this.cfg;
+    if (!pop.modelPending[i]) return 0;
+
+    const featOff = pop.modelFeatureOffset(i);
+    const predOff = pop.modelPredOffset(i);
+    const featCount = hiddenSize + OUTPUT_COUNT + 1;
+    for (let k = 0; k < featCount; k++) this.mFeat[k] = pop.modelFeat[featOff + k];
+    for (let k = 0; k < MODEL_ROWS; k++) this.mPred[k] = pop.modelPred[predOff + k];
+
+    // Meta-learning. When recent surprise runs well above the long-run average,
+    // something about the world has moved and there is more to be had from
+    // stepping hard; when it runs below, the model is already tracking and a
+    // large step only injects noise. How much this is allowed to matter is
+    // itself genetic, and at metaGain zero the rate never moves. This is the
+    // mechanism by which a volatile world can come to favour fast learning and
+    // a stable one slow learning, without either preference being written down.
+    const slow = pop.predErrorSlow[i];
+    const volatility = slow > 1e-4 ? pop.predErrorFast[i] / slow : 1;
+    const meta = clamp(1 + pop.metaGain[i] * (volatility - 1), 0.25, 4);
+    const rate = Math.min(0.9, pop.predictionRate[i] * meta);
+
+    const reward = pop.modelRewardAccum[i];
+    fitModel(
+      pop.model,
+      pop.modelOffset(i),
+      this.mFeat,
+      featCount,
+      hiddenSize,
+      this.mPred,
+      this.hidden,
+      0,
+      reward,
+      rate,
+      pop.modelDecay[i],
+      this.mErr,
+    );
+    noteExposure(pop.modelExposure, featOff, this.mFeat, featCount, pop.modelDecay[i] * 0.5);
+    pop.replayHead[i] = pushReplay(
+      pop.replay,
+      pop.replayOffset(i),
+      pop.replayHead[i],
+      this.mFeat,
+      featCount,
+      this.hidden,
+      0,
+      hiddenSize,
+      reward,
+    );
+    if (pop.modelSamples[i] < 0xffffffff) pop.modelSamples[i]++;
+
+    // Surprise, kept in two pieces. Being wrong about the shape of the next
+    // moment and being wrong about whether it goes well are different failures,
+    // and an organism can be reliably good at one and hopeless at the other.
+    const surprise = this.mErr.latent + Math.min(1, this.mErr.reward);
+    pop.predError[i] = surprise;
+    pop.rewardError[i] = this.mErr.reward;
+    // How far this sample sat from what was expected of it, before the
+    // averages move. This is the raw material for knowing how much the
+    // organism's own surprise wobbles when nothing is changing.
+    const deviation = surprise - pop.predErrorFast[i];
+    pop.predErrorVar[i] = pop.predErrorVar[i] * 0.95 + deviation * deviation * 0.05;
+    pop.predErrorFast[i] = pop.predErrorFast[i] * 0.75 + surprise * 0.25;
+    pop.predErrorSlow[i] = pop.predErrorSlow[i] * 0.98 + surprise * 0.02;
+
+    // Learning progress: the long-run average minus the recent one, minus how
+    // much that difference bounces around on its own.
+    //
+    // The correction is the whole point and it took a failing test to find.
+    // Without it, a *permanently unpredictable* stream still produces positive
+    // progress on a regular basis: the short average fluctuates around the long
+    // one, and every downward fluctuation reads as improvement. An organism paid
+    // for that would be paid for sitting in front of noise, which is exactly the
+    // failure mode this quantity exists to avoid. So an improvement only counts
+    // once it exceeds the standard deviation the short average would have under
+    // pure chance — the same standard the experiment runner applies to a
+    // difference between arms, applied here to a difference across time.
+    const raw = pop.predErrorSlow[i] - pop.predErrorFast[i];
+    // sd of an EWMA of white noise at rate a is sigma * sqrt(a / (2 - a)).
+    const wobble = 2.5 * Math.sqrt(pop.predErrorVar[i] * 0.1429);
+    pop.learningProgress[i] = raw > 0 ? Math.max(0, raw - wobble) : Math.min(0, raw + wobble);
+    pop.modelConfidence[i] = 1 / (1 + pop.predErrorSlow[i] * 3);
+
+    // Value from having learned something, rather than from anything the world
+    // handed over. It requires *both* that the situation was unfamiliar and
+    // that the organism has been improving — novelty alone would pay an animal
+    // to stare at static. The weight is genetic and very often zero.
+    pop.intrinsic[i] = cfg.intrinsicEnabled
+      ? pop.curiosity[i] * Math.max(0, pop.learningProgress[i]) * pop.novelty[i] * 5
+      : 0;
+
+    return cfg.modelUpdateCost * hiddenSize;
+  }
+
+  /**
+   * Commit to an expectation about the next model step, and note how unfamiliar
+   * the situation being acted on was.
+   */
+  private recordPrediction(i: number, hiddenSize: number, action: Float32Array): void {
+    const pop = this.pop;
+    const featOff = pop.modelFeatureOffset(i);
+    const predOff = pop.modelPredOffset(i);
+    const featCount = buildFeatures(this.mFeat, this.hidden, 0, action, hiddenSize);
+    predictInto(pop.model, pop.modelOffset(i), this.mFeat, featCount, hiddenSize, this.mPred);
+    for (let k = 0; k < featCount; k++) pop.modelFeat[featOff + k] = this.mFeat[k];
+    for (let k = 0; k < MODEL_ROWS; k++) pop.modelPred[predOff + k] = this.mPred[k];
+    pop.novelty[i] = uncertainty(pop.modelExposure, featOff, this.mFeat, featCount);
+    pop.modelPending[i] = 1;
+    pop.modelRewardAccum[i] = 0;
   }
 
   // ------------------------------------------------------- acoustic events
@@ -1445,6 +1813,55 @@ export class Simulation {
     );
     pop.heardValence[i] = match.valence;
     pop.heardFamiliarity[i] = match.familiarity;
+
+    // A sound this organism has heard before, and has its own opinion about,
+    // arriving from a place it can locate. If the opinion is strong enough and
+    // the organism is disposed to take other organisms seriously, it writes a
+    // place memory at the source — an expectation about somewhere it has never
+    // been, formed from something it merely heard.
+    //
+    // Four things are worth being exact about. The valence is the *listener's*
+    // own, learned from its own reward stream, so nothing is transmitted except
+    // an occasion for the listener to consult itself. No emitter intends this
+    // and no emitter benefits from it by construction. The memory is marked as
+    // second-hand and lands at a lower confidence than a lived one, so a lived
+    // experience overwrites it. And it is frequently wrong: an organism whose
+    // association was formed by coincidence will lay down a belief about a
+    // place on no evidence at all, and pay for it.
+    //
+    // That is the entire mechanism by which anything one organism learned can
+    // reach another without being lived twice. Whether any lineage ever uses it
+    // depends on whether sounds in this world are worth attending to, which is
+    // not decided here.
+    const socialRate = pop.socialLearningRate[i];
+    const slots = pop.memorySlots[i];
+    if (
+      cfg.socialMemoryEnabled &&
+      slots > 0 &&
+      socialRate > 0.01 &&
+      match.familiarity > 0.4 &&
+      Math.abs(match.valence) > 0.25
+    ) {
+      const conviction = match.valence * match.familiarity * (socialRate / 0.35);
+      if (Math.abs(conviction) > ENCODE_THRESHOLD) {
+        const ctxDims = Math.min(pop.contextSize[i], MEMORY_CONTEXT_DIM);
+        encodeMemory(
+          pop.mem,
+          pop.memoryOffset(i),
+          slots,
+          pop.attendSrcX[i],
+          pop.attendSrcY[i],
+          conviction,
+          pop.context,
+          pop.contextOffset(i),
+          ctxDims,
+          true,
+        );
+        if (pop.vicariousMemories[i] < 65535) pop.vicariousMemories[i]++;
+        this.vicariousThisTick++;
+        this.totalVicarious++;
+      }
+    }
 
     // --- observer bookkeeping from here down ---
     pop.heardCluster[i] = this.acoustics.classify(desc, 0);
@@ -1879,6 +2296,21 @@ export class Simulation {
     let hearing = 0;
     let social = 0;
     let groupSize = 0;
+    let predRate = 0;
+    let predError = 0;
+    let predErrorN = 0;
+    let predAccuracy = 0;
+    let progress = 0;
+    let novelty = 0;
+    let curiosity = 0;
+    let planHorizon = 0;
+    let modellers = 0;
+    let planners = 0;
+    let consolidation = 0;
+    let toxin = 0;
+    let memImportance = 0;
+    let memHeld = 0;
+    let memSocial = 0;
 
     this.liveCount = 0;
 
@@ -1901,6 +2333,33 @@ export class Simulation {
       hearing += pop.hearingRange[i];
       social += pop.socialLearningRate[i];
       groupSize += this.obsNeighbours[i];
+      predRate += pop.predictionRate[i];
+      curiosity += pop.curiosity[i];
+      planHorizon += pop.planHorizon[i];
+      consolidation += pop.consolidation[i];
+      toxin += pop.toxinLoad[i];
+      // Prediction quality is averaged over the organisms that make predictions
+      // at all. Folding in the ones that never model anything would report a
+      // population of non-predictors as a population of bad predictors, which
+      // are completely different things.
+      if (pop.predictionRate[i] > 0) {
+        modellers++;
+        if (pop.modelSamples[i] > 4) {
+          predError += pop.predErrorSlow[i];
+          predAccuracy += 1 / (1 + pop.predErrorSlow[i]);
+          progress += pop.learningProgress[i];
+          novelty += pop.novelty[i];
+          predErrorN++;
+        }
+        if (pop.planHorizon[i] > 0 && pop.planBudget[i] > 0) planners++;
+      }
+      const mo = pop.memoryOffset(i);
+      for (let m = 0; m < pop.memorySlots[i]; m++) {
+        if (pop.memStrength[mo + m] <= 0.001) continue;
+        memHeld++;
+        memImportance += pop.memImportance[mo + m];
+        if (pop.memSocial[mo + m]) memSocial++;
+      }
       const d = pop.genome[pop.genomeOffset(i) + Locus.Digestion];
       carn += d;
       if (d > 0.5) carnCount++;
@@ -1979,6 +2438,23 @@ export class Simulation {
       distinctMemes: cultureReport.distinctMemes,
       posthumousMemes: cultureReport.posthumousMemes,
       signalMeaningConfidence: bestMeaning,
+      avgPredictionRate: predRate * inv,
+      avgPredictionError: predErrorN > 0 ? predError / predErrorN : 0,
+      avgPredictionAccuracy: predErrorN > 0 ? predAccuracy / predErrorN : 0,
+      avgLearningProgress: predErrorN > 0 ? progress / predErrorN : 0,
+      avgNovelty: predErrorN > 0 ? novelty / predErrorN : 0,
+      avgCuriosity: curiosity * inv,
+      avgPlanHorizon: planHorizon * inv,
+      modellingFraction: count > 0 ? modellers / count : 0,
+      planningFraction: count > 0 ? planners / count : 0,
+      modelStepsPerTick: this.modelStepsWindow / wt,
+      planStepsPerTick: this.planStepsWindow / wt,
+      avgConsolidation: consolidation * inv,
+      avgMemoryImportance: memHeld > 0 ? memImportance / memHeld : 0,
+      socialMemoryFraction: memHeld > 0 ? memSocial / memHeld : 0,
+      vicariousPerTick: this.vicariousWindow / wt,
+      avgToxinLoad: toxin * inv,
+      toxinDeathsPerTick: this.toxinDeathsWindow / wt,
       diversity: this.sampleDiversity(),
       carnivory: carn * inv,
       carnivoreFraction: count > 0 ? carnCount / count : 0,
@@ -2020,14 +2496,79 @@ export class Simulation {
       diversity: this.stats.diversity,
       extinctionsInWindow: 0,
       speciesLostFraction: lost,
+      predictionAccuracy: this.stats.avgPredictionAccuracy,
+      modellingFraction: this.stats.modellingFraction,
+      planningFraction: this.stats.planningFraction,
+      learningProgress: this.stats.avgLearningProgress,
+      curiosity: this.stats.avgCuriosity,
+      novelty: this.stats.avgNovelty,
+      socialMemoryFraction: this.stats.socialMemoryFraction,
+      vicariousPerTick: this.stats.vicariousPerTick,
+      toxinDeathsPerTick: this.stats.toxinDeathsPerTick,
     });
+
+    this.recordCognition();
 
     this.birthsWindow = 0;
     this.deathsWindow = 0;
     this.killsWindow = 0;
     this.sharesWindow = 0;
     this.callsWindow = 0;
+    this.modelStepsWindow = 0;
+    this.planStepsWindow = 0;
+    this.vicariousWindow = 0;
+    this.toxinDeathsWindow = 0;
     this.windowTicks = 0;
+  }
+
+  /**
+   * Fold the current cognitive state of each species into the ledger. Purely
+   * observational: the ledger is never read by anything the organisms can feel.
+   */
+  private recordCognition(): void {
+    const pop = this.pop;
+    const acc = new Map<
+      number,
+      { n: number; gen: number; brain: number; mem: number; acc: number; accN: number; rate: number; cur: number; hor: number; nov: number }
+    >();
+    for (let k = 0; k < this.liveCount; k++) {
+      const i = this.liveIndex[k];
+      const sid = pop.speciesId[i];
+      let a = acc.get(sid);
+      if (!a) {
+        a = { n: 0, gen: 0, brain: 0, mem: 0, acc: 0, accN: 0, rate: 0, cur: 0, hor: 0, nov: 0 };
+        acc.set(sid, a);
+      }
+      a.n++;
+      a.gen += pop.generation[i];
+      a.brain += pop.hiddenSize[i] + pop.contextSize[i];
+      a.mem += pop.memorySlots[i];
+      a.rate += pop.predictionRate[i];
+      a.cur += pop.curiosity[i];
+      a.hor += pop.planHorizon[i];
+      if (pop.predictionRate[i] > 0 && pop.modelSamples[i] > 4) {
+        a.acc += 1 / (1 + pop.predErrorSlow[i]);
+        a.nov += pop.novelty[i];
+        a.accN++;
+      }
+    }
+    for (const [sid, a] of acc) {
+      const rec = this.species.species.get(sid);
+      if (!rec || a.n < 3) continue;
+      const q = 1 / a.n;
+      this.cognitionLedger.record(sid, rec.name, rec.hue, {
+        tick: this.tick,
+        generation: a.gen * q,
+        population: a.n,
+        brain: a.brain * q,
+        memory: a.mem * q,
+        predictionAccuracy: a.accN > 0 ? a.acc / a.accN : 0,
+        learningRate: a.rate * q,
+        curiosity: a.cur * q,
+        planHorizon: a.hor * q,
+        novelty: a.accN > 0 ? a.nov / a.accN : 0,
+      });
+    }
   }
 
   /** Fold one organism's situation into its species' niche profile. */
@@ -2121,6 +2662,14 @@ export class Simulation {
       imitation: s.imitationsPerTick,
       transmission: s.transmissionIndex,
       sharing: s.sharesPerTick,
+      predictionAccuracy: s.avgPredictionAccuracy,
+      predictionRate: s.avgPredictionRate,
+      learningProgress: s.avgLearningProgress,
+      curiosity: s.avgCuriosity,
+      novelty: s.avgNovelty,
+      planning: s.avgPlanHorizon,
+      toxinLoad: s.avgToxinLoad,
+      vicarious: s.vicariousPerTick,
     } as Record<SeriesKey, number>;
     this.history.push(this.tick, values);
 
@@ -2168,7 +2717,21 @@ export class Simulation {
     const pop = this.pop;
     const acc = new Map<
       number,
-      { n: number; size: number; speed: number; brain: number; carn: number; memory: number; social: number; traits: Float32Array }
+      {
+        n: number;
+        size: number;
+        speed: number;
+        brain: number;
+        carn: number;
+        memory: number;
+        social: number;
+        rate: number;
+        acc: number;
+        accN: number;
+        curiosity: number;
+        horizon: number;
+        traits: Float32Array;
+      }
     >();
     for (let i = 0; i < pop.count; i++) {
       if (!pop.alive[i]) continue;
@@ -2183,6 +2746,11 @@ export class Simulation {
           carn: 0,
           memory: 0,
           social: 0,
+          rate: 0,
+          acc: 0,
+          accN: 0,
+          curiosity: 0,
+          horizon: 0,
           traits: new Float32Array(GENOME_LENGTH),
         };
         acc.set(sid, a);
@@ -2193,6 +2761,13 @@ export class Simulation {
       a.brain += pop.hiddenSize[i] + pop.contextSize[i];
       a.memory += pop.memorySlots[i];
       a.social += pop.socialLearningRate[i];
+      a.rate += pop.predictionRate[i];
+      a.curiosity += pop.curiosity[i];
+      a.horizon += pop.planHorizon[i];
+      if (pop.predictionRate[i] > 0 && pop.modelSamples[i] > 4) {
+        a.acc += 1 / (1 + pop.predErrorSlow[i]);
+        a.accN++;
+      }
       const go = pop.genomeOffset(i);
       a.carn += pop.genome[go + Locus.Digestion];
       for (let g = 0; g < GENOME_LENGTH; g++) a.traits[g] += pop.genome[go + g];
@@ -2220,6 +2795,10 @@ export class Simulation {
         avgBrain: a.brain * inv,
         avgMemory: a.memory * inv,
         avgSocialLearning: a.social * inv,
+        avgPredictionRate: a.rate * inv,
+        avgPredictionAccuracy: a.accN > 0 ? a.acc / a.accN : 0,
+        avgCuriosity: a.curiosity * inv,
+        avgPlanHorizon: a.horizon * inv,
         carnivory: a.carn * inv,
         niche: this.nicheOf(sid),
       });
@@ -2254,6 +2833,10 @@ export class Simulation {
         avgBrain: 0,
         avgMemory: 0,
         avgSocialLearning: 0,
+        avgPredictionRate: 0,
+        avgPredictionAccuracy: 0,
+        avgCuriosity: 0,
+        avgPlanHorizon: 0,
         carnivory: 0,
         niche: null,
       });
@@ -2315,6 +2898,8 @@ export class Simulation {
         y: pop.memY[mo + s],
         valence: pop.memValence[mo + s],
         strength: pop.memStrength[mo + s],
+        importance: pop.memImportance[mo + s],
+        social: pop.memSocial[mo + s] === 1,
       });
     }
 
@@ -2354,6 +2939,28 @@ export class Simulation {
         pop.kinTag.subarray(pop.kinTagOffset(slot), pop.kinTagOffset(slot) + KIN_TAG_LENGTH),
       ),
       memories,
+      toxinLoad: pop.toxinLoad[slot],
+      predictionRate: pop.predictionRate[slot],
+      curiosity: pop.curiosity[slot],
+      planHorizon: pop.planHorizon[slot],
+      planBudget: pop.planBudget[slot],
+      consolidation: pop.consolidation[slot],
+      modelSamples: pop.modelSamples[slot],
+      predictionError: pop.predError[slot],
+      rewardError: pop.rewardError[slot],
+      modelConfidence: pop.modelConfidence[slot],
+      learningProgress: pop.learningProgress[slot],
+      novelty: pop.novelty[slot],
+      intrinsic: pop.intrinsic[slot],
+      planAdvantage: pop.planAdvantage[slot],
+      consolidations: pop.consolidations[slot],
+      vicariousMemories: pop.vicariousMemories[slot],
+      predictedLatent: Array.from(
+        pop.modelPred.subarray(pop.modelPredOffset(slot), pop.modelPredOffset(slot) + MODEL_ROWS),
+      ),
+      planDelta: Array.from(
+        pop.planDelta.subarray(pop.planOffset(slot), pop.planOffset(slot) + OUTPUT_COUNT),
+      ),
       voice: Array.from(pop.voice.subarray(pop.voiceOffset(slot), pop.voiceOffset(slot) + VOICE_DIM)),
       calling: pop.callTicks[slot] > 0,
       callTicks: pop.callTicks[slot],
@@ -2388,6 +2995,14 @@ export class Simulation {
         memorySlots: pop.memorySlots[slot],
         memoryDecay: pop.memoryDecay[slot],
         socialLearningRate: pop.socialLearningRate[slot],
+        predictionRate: pop.predictionRate[slot],
+        modelDecay: pop.modelDecay[slot],
+        metaGain: pop.metaGain[slot],
+        curiosity: pop.curiosity[slot],
+        planHorizon: pop.planHorizon[slot],
+        planBudget: pop.planBudget[slot],
+        consolidation: pop.consolidation[slot],
+        toxinClearance: pop.toxinClearance[slot],
         plantEfficiency: pop.plantEfficiency[slot],
         meatEfficiency: pop.meatEfficiency[slot],
         tempPreference: pop.tempPreference[slot],
@@ -2460,6 +3075,16 @@ export class Simulation {
     });
   }
 
+  /**
+   * What the telemetry says about cognition in this run, and what it does not.
+   * Computed on demand from the history ring — nothing is cached and nothing
+   * feeds back.
+   */
+  cognitionReport(): CognitionReport {
+    const h = this.history.toChrono();
+    return analyseCognition(h.series, h.ticks.length);
+  }
+
   // ------------------------------------------------------------- persistence
 
   /** Everything needed to resume the run exactly where it left off. */
@@ -2475,6 +3100,8 @@ export class Simulation {
       totalDeaths: this.totalDeaths,
       totalImitations: this.totalImitations,
       totalCalls: this.totalCalls,
+      totalToxinDeaths: this.totalToxinDeaths,
+      totalVicarious: this.totalVicarious,
       nextId: pop.nextId,
       externalSounds: this.externalSounds.map((e) => ({
         id: e.id,
@@ -2560,6 +3187,35 @@ export class Simulation {
         memY: pop.memY.slice(0, n * MAX_MEMORY),
         memValence: pop.memValence.slice(0, n * MAX_MEMORY),
         memStrength: pop.memStrength.slice(0, n * MAX_MEMORY),
+        memImportance: pop.memImportance.slice(0, n * MAX_MEMORY),
+        memContext: pop.memContext.slice(0, n * MAX_MEMORY * MEMORY_CONTEXT_DIM),
+        memSocial: pop.memSocial.slice(0, n * MAX_MEMORY),
+        // Everything an organism worked out for itself. Without this a restored
+        // world would be repopulated by amnesiacs, and a fork would stop being
+        // a continuation of its parent on the very first model step.
+        model: pop.model.slice(0, n * MODEL_STRIDE),
+        modelExposure: pop.modelExposure.slice(0, n * MODEL_FEATURES),
+        modelPred: pop.modelPred.slice(0, n * MODEL_ROWS),
+        modelFeat: pop.modelFeat.slice(0, n * MODEL_FEATURES),
+        modelPending: pop.modelPending.slice(0, n),
+        modelRewardAccum: pop.modelRewardAccum.slice(0, n),
+        modelSamples: pop.modelSamples.slice(0, n),
+        predError: pop.predError.slice(0, n),
+        predErrorFast: pop.predErrorFast.slice(0, n),
+        predErrorSlow: pop.predErrorSlow.slice(0, n),
+        predErrorVar: pop.predErrorVar.slice(0, n),
+        rewardError: pop.rewardError.slice(0, n),
+        modelConfidence: pop.modelConfidence.slice(0, n),
+        novelty: pop.novelty.slice(0, n),
+        learningProgress: pop.learningProgress.slice(0, n),
+        intrinsic: pop.intrinsic.slice(0, n),
+        planAdvantage: pop.planAdvantage.slice(0, n),
+        planDelta: pop.planDelta.slice(0, n * OUTPUT_COUNT),
+        replay: pop.replay.slice(0, n * REPLAY_STRIDE),
+        replayHead: pop.replayHead.slice(0, n),
+        consolidations: pop.consolidations.slice(0, n),
+        toxinLoad: pop.toxinLoad.slice(0, n),
+        vicariousMemories: pop.vicariousMemories.slice(0, n),
       },
       world: {
         vegetation: this.world.vegetation.slice(),
@@ -2607,6 +3263,8 @@ export class Simulation {
     this.totalDeaths = data.totalDeaths ?? 0;
     this.totalImitations = data.totalImitations ?? 0;
     this.totalCalls = data.totalCalls ?? 0;
+    this.totalToxinDeaths = data.totalToxinDeaths ?? 0;
+    this.totalVicarious = data.totalVicarious ?? 0;
     this.externalSounds = ((data.externalSounds as any[]) ?? []).map((e) => ({
       id: e.id,
       x: e.x,
@@ -2691,6 +3349,32 @@ export class Simulation {
     copy(pop.memY, p.memY);
     copy(pop.memValence, p.memValence);
     copy(pop.memStrength, p.memStrength);
+    copy(pop.memImportance, p.memImportance);
+    copy(pop.memContext, p.memContext);
+    copy(pop.memSocial, p.memSocial);
+    copy(pop.model, p.model);
+    copy(pop.modelExposure, p.modelExposure);
+    copy(pop.modelPred, p.modelPred);
+    copy(pop.modelFeat, p.modelFeat);
+    copy(pop.modelPending, p.modelPending);
+    copy(pop.modelRewardAccum, p.modelRewardAccum);
+    copy(pop.modelSamples, p.modelSamples);
+    copy(pop.predError, p.predError);
+    copy(pop.predErrorFast, p.predErrorFast);
+    copy(pop.predErrorSlow, p.predErrorSlow);
+    copy(pop.predErrorVar, p.predErrorVar);
+    copy(pop.rewardError, p.rewardError);
+    copy(pop.modelConfidence, p.modelConfidence);
+    copy(pop.novelty, p.novelty);
+    copy(pop.learningProgress, p.learningProgress);
+    copy(pop.intrinsic, p.intrinsic);
+    copy(pop.planAdvantage, p.planAdvantage);
+    copy(pop.planDelta, p.planDelta);
+    copy(pop.replay, p.replay);
+    copy(pop.replayHead, p.replayHead);
+    copy(pop.consolidations, p.consolidations);
+    copy(pop.toxinLoad, p.toxinLoad);
+    copy(pop.vicariousMemories, p.vicariousMemories);
 
     pop.count = n;
     pop.nextId = data.nextId;
@@ -2740,6 +3424,7 @@ export class Simulation {
     this.acoustics.reset();
     this.culture.reset();
     this.chronicle.reset();
+    this.cognitionLedger.reset();
 
     // computeStats() draws from the RNG (diversity sampling, culture pair
     // sampling). Restoring must leave the stream exactly where the save left
@@ -2754,6 +3439,7 @@ export class Simulation {
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
+
 
 /** The sounds an organism has most recently heard, newest first. */
 function echoicSnapshot(
@@ -2856,6 +3542,23 @@ function emptyStats(): Stats {
     distinctMemes: 0,
     posthumousMemes: 0,
     signalMeaningConfidence: 0,
+    avgPredictionRate: 0,
+    avgPredictionError: 0,
+    avgPredictionAccuracy: 0,
+    avgLearningProgress: 0,
+    avgNovelty: 0,
+    avgCuriosity: 0,
+    avgPlanHorizon: 0,
+    modellingFraction: 0,
+    planningFraction: 0,
+    modelStepsPerTick: 0,
+    planStepsPerTick: 0,
+    avgConsolidation: 0,
+    avgMemoryImportance: 0,
+    socialMemoryFraction: 0,
+    vicariousPerTick: 0,
+    avgToxinLoad: 0,
+    toxinDeathsPerTick: 0,
     diversity: 0,
     carnivory: 0,
     carnivoreFraction: 0,

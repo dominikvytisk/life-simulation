@@ -121,6 +121,16 @@ export class Chronicle {
       diversity: number;
       extinctionsInWindow: number;
       speciesLostFraction: number;
+      // ---- cognition ----
+      predictionAccuracy: number;
+      modellingFraction: number;
+      planningFraction: number;
+      learningProgress: number;
+      curiosity: number;
+      novelty: number;
+      socialMemoryFraction: number;
+      vicariousPerTick: number;
+      toxinDeathsPerTick: number;
     },
   ): void {
     // ---- firsts ----
@@ -340,6 +350,75 @@ export class Chronicle {
       log,
     );
 
+    // ---- cognitive firsts ----
+    // Each of these is a threshold on something measured, and each can simply
+    // never fire. A population that never evolves to predict anything produces
+    // none of them, and that is a result rather than a gap.
+    this.candidate(
+      'first-prediction',
+      m.modellingFraction > 0.5 && m.predictionAccuracy > 0.5,
+      8,
+      () => ({
+        label: 'Organisms are modelling their own next state',
+        generation: m.generation,
+        evidence: `${(m.modellingFraction * 100).toFixed(0)}% of the population fits a predictive model, mean accuracy ${m.predictionAccuracy.toFixed(2)} — measured against each organism's own internal state, not against the world`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-good-prediction',
+      m.predictionAccuracy > 0.75 && m.modellingFraction > 0.4,
+      10,
+      () => ({
+        label: 'Prediction has become reliable',
+        generation: m.generation,
+        evidence: `mean accuracy ${m.predictionAccuracy.toFixed(2)} sustained over ten samples — this says the models fit, not that the organisms use them for anything`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-planning',
+      m.planningFraction > 0.1,
+      8,
+      () => ({
+        label: 'Organisms are imagining before acting',
+        generation: m.generation,
+        evidence: `${(m.planningFraction * 100).toFixed(0)}% carry a non-zero prediction horizon and planning budget, and pay for the rollouts in energy`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-curiosity',
+      m.curiosity > 0.15 && m.learningProgress > 0.002,
+      10,
+      () => ({
+        label: 'Value is being taken from learning itself',
+        generation: m.generation,
+        evidence: `mean curiosity ${m.curiosity.toFixed(2)} alongside positive learning progress ${m.learningProgress.toFixed(4)} — the population is improving at prediction, not merely being surprised`,
+      }),
+      tick,
+      log,
+    );
+
+    this.candidate(
+      'first-vicarious-knowledge',
+      m.socialMemoryFraction > 0.05 && m.vicariousPerTick > 0.01,
+      8,
+      () => ({
+        label: 'Beliefs about places nobody visited',
+        generation: m.generation,
+        evidence: `${(m.socialMemoryFraction * 100).toFixed(0)}% of held place-memories were formed from a sound rather than from experience, arriving at ${m.vicariousPerTick.toFixed(3)} per tick — whether any of them are correct is a separate question`,
+      }),
+      tick,
+      log,
+    );
+
     if (m.speciesLostFraction > 0.4 && m.species > 0) {
       const id = `mass-extinction-${Math.floor(tick / 5000)}`;
       this.candidate(
@@ -368,6 +447,17 @@ export class Chronicle {
     this.checkSeries('vocal diversity', m.vocalDiversity, tick, log);
     this.checkSeries('dialect divergence', m.dialectDivergence, tick, log);
     this.checkSeries('signal coupling', m.signalCoupling, tick, log);
+    // Cognitive series go through exactly the same z-test as everything else.
+    // There is no separate detector for "cognitive emergence" and no list of
+    // things it is allowed to find: an unusual reading is reported as an
+    // unusual reading in a named series, and what it means is left open.
+    this.checkSeries('prediction accuracy', m.predictionAccuracy, tick, log);
+    this.checkSeries('learning progress', m.learningProgress, tick, log);
+    this.checkSeries('curiosity', m.curiosity, tick, log);
+    this.checkSeries('novelty encountered', m.novelty, tick, log);
+    this.checkSeries('planning fraction', m.planningFraction, tick, log);
+    this.checkSeries('socially held memory', m.socialMemoryFraction, tick, log);
+    this.checkSeries('toxin deaths', m.toxinDeathsPerTick, tick, log);
   }
 
   /** Welford running statistics plus a persistence-gated z-test. */

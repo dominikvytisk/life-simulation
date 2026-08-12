@@ -27,14 +27,37 @@ survives, survives.
 
 ## What is in it
 
-- **Evolvable genomes** — 41 loci controlling body plan, metabolism, senses, brain width, memory,
-  vocal and auditory anatomy, and the mutation rate itself
-- **A neural network per organism** — recurrent, 71 sensory inputs, 18 action outputs, with evolved
+- **Evolvable genomes** — 49 loci controlling body plan, metabolism, senses, brain width, memory,
+  vocal and auditory anatomy, *how the organism learns*, and the mutation rate itself
+- **A neural network per organism** — recurrent, 79 sensory inputs, 18 action outputs, with evolved
   hidden width and evolved recurrent memory
 - **Lifetime learning** — reward-modulated Hebbian plasticity, kept strictly separate from the
   germline, so nothing learned is ever inherited
-- **Episodic memory** — organisms remember where good and bad things happened to them, at a real
-  upkeep cost that many lineages decline to pay
+- **A private world model per organism** — each one learns to predict its own next internal state
+  and its own next stretch of reward, from nothing but what its own senses produced. Nothing is
+  shared, nothing is trained across the population, and an organism that expresses zero prediction
+  carries no model and pays nothing
+- **Prediction error, kept separate from reward** — being wrong about what the next moment looks
+  like and being wrong about whether it goes well are tracked as different failures
+- **Curiosity from learning progress, not from surprise** — intrinsic value requires both that a
+  situation is unfamiliar *and* that the organism has been getting better at predicting it, so
+  nothing is paid for staring at noise
+- **Internal simulation and shallow planning** — an organism can imagine a few variations on what
+  its network just proposed, roll each forward through its own model, and keep the one it expects to
+  go best. Depth and breadth are genetic, start at zero, and cost energy per imagined step
+- **Evolvable learning strategy** — learning rate, forgetting rate, prediction horizon, planning
+  budget, curiosity, consolidation and a meta-rate that lets recent surprise change the learning rate
+  itself. Fast learners, slow learners, explorers and exploiters are statistical outcomes of these,
+  not classes
+- **Episodic memory with context and consolidation** — organisms remember where good and bad things
+  happened *and the internal state they happened in*, strengthen what proves useful, and replay
+  recent experience while resting. All of it at a real upkeep cost many lineages decline to pay
+- **Delayed consequences** — some vegetation carries a slow poison correlated with a visible but
+  unlabelled property of the plant. The energy arrives now, the damage arrives hundreds of ticks
+  later, and the connection has to be learned or evolved around
+- **Socially transmitted belief** — a listener that recognises a sound can form a place-memory at its
+  source from its own learned association, so knowledge can reach an organism that never lived it.
+  It is frequently wrong
 - **Emergent acoustic communication** — a genetically determined vocal tract and ear, sound that
   propagates through real physics, and an observer that measures what the resulting calls correlate
   with rather than deciding what they mean
@@ -106,7 +129,8 @@ the renderer draws from it, and it is handed back on the next frame. Steady-stat
 | `src/sim/world` | Procedural generation, environment fields, map painter |
 | `src/sim/genome` | Gene loci, genotype → phenotype expression |
 | `src/sim/brain` | Network layout, forward pass, Hebbian plasticity, imitation |
-| `src/sim/memory` | Episodic place memory: encoding, recall, forgetting |
+| `src/sim/memory` | Episodic place memory: encoding, context-gated recall, forgetting, consolidation |
+| `src/sim/cognition` | The world model, internal simulation and planning, offline replay |
 | `src/sim/evolution` | Crossover, mutation, kin-tag inheritance, founder genomes |
 | `src/sim/organisms` | The SoA population store |
 | `src/sim/species` | Speciation, phylogeny, extinction records |
@@ -127,9 +151,16 @@ the renderer draws from it, and it is handed back on the next frame. Steady-stat
 
 ### Genome
 
-41 loci, each a float in `[0,1]`. The genome is uniform and meaningless on its own — `phenotype.ts`
+49 loci, each a float in `[0,1]`. The genome is uniform and meaningless on its own — `phenotype.ts`
 is the only place that decides what a gene *does*. That keeps mutation, crossover and genetic
 distance generic.
+
+Eight of those loci do not describe the organism at all. They describe **how it learns**: the rate
+its internal model is fitted at, how fast an unrefreshed expectation is abandoned, how much recent
+surprise is allowed to change that rate, how much weight the unexplained carries, how far ahead and
+how widely it can imagine, how much it replays while resting, and how fast it clears a toxin. Two
+organisms with identical bodies and identical brains but different values here will, in the same
+world, end up behaving differently — because they will have learned different things.
 
 Almost every trait is **paid for**. Bigger eyes cost upkeep. Armor costs mass, and mass costs speed.
 A wider brain costs energy every tick. A meat-specialised gut *loses* the ability to digest plants
@@ -137,7 +168,11 @@ A wider brain costs energy every tick. A meat-specialised gut *loses* the abilit
 specialist is at its own food). Without costs, evolution maximises everything and the ecosystem
 collapses into a single strategy.
 
-Note what is **not** in the genome: no diet type, no species label, no behaviour flag, no role.
+Note what is **not** in the genome: no diet type, no species label, no behaviour flag, no role, and
+no intelligence score. Nothing unlocks at a generation threshold. Every cognitive capability is
+available from tick zero and costs upkeep from tick zero, which is why founders are drawn with
+almost none of it — handing generation 0 a large model would not produce thinking animals, it would
+produce a population taxed for organs it cannot yet use.
 
 ### Neural network
 
@@ -170,9 +205,26 @@ population density, the *mean heading of neighbours*, temperature stress, water 
 pheromone concentration and its gradient, pain, reward — and, from the ear, the physical properties
 of whatever is currently in the air plus the last few sounds that finished.
 
+Six more are interoception aimed at the learning machinery rather than at the body: how badly the
+organism's own model has been failing, how confident it is, whether it has been getting better
+lately, how unfamiliar the situation is, what its curiosity currently amounts to, and how much
+better deliberating made its last decision look. Two more are a visible property of the local
+vegetation and how much of something the organism cannot name has built up inside it.
+
+Nothing tells the brain what to do about any of them. A lineage that evolves zero weights onto all
+eight behaves exactly as it did before any of this existed, and many do.
+
+Between the world and an organism there is now an **instrument**. Distal senses — gradients,
+neighbour bearings, local vegetation, the flora trait — are degraded by noise scaled by
+`(1 - visionAcuity)`, so a cheap eye reports roughly and a sharp one nearly exactly. Nothing ever
+receives the number the world actually holds. That noise is hashed from `(slot, tick, channel)`
+rather than drawn from the simulation RNG, so it cannot make the run's randomness depend on how many
+organisms happen to be alive.
+
 Some of those are the exact ingredients a flocking rule would need. No flocking rule is provided.
 Others are the exact ingredients a conversation would need. No conversation system is provided
-either.
+either. And the world model is handed the exact ingredients a planner would need, with no goal
+attached to any of them.
 
 ### Energy economy
 
@@ -198,9 +250,117 @@ happened, how good or bad, and a confidence that decays. It senses the remembere
 current position, the direction of its best and worst remembered places, and how loaded its memory
 is — six sensory inputs, nothing more. There is no "return to remembered food" behaviour anywhere.
 
-Capacity and forgetting rate are both genetic and both cost upkeep every tick, so memory has to earn
-its keep. Many lineages evolve *zero* slots, which is a legitimate answer to a world where
-remembering costs more than it returns.
+Each memory also carries a **context fingerprint** — the first few units of the organism's own
+recurrent state at the moment of encoding. Recall is weighted by how closely the current state
+resembles it, so a memory is not simply a fact about a patch of ground but a fact about that ground
+*as met in a particular kind of moment*. An organism that encounters two superficially different
+things its brain happens to represent alike will recall one when it meets the other, which is
+generalisation arrived at without anything in the code knowing what either thing was. It is also how
+generalisation goes wrong, and nothing prevents that. An organism whose `BrainContext` evolved to
+zero has no such state and no gating at all.
+
+Memories that keep being present when something significant happens gain **importance**: they decay
+more slowly and are the last to be displaced. During deep rest an organism can **consolidate** —
+strengthening what has proven useful, releasing what has not, and replaying stored transitions into
+its world model. Total held confidence does not rise, so consolidating is a decision about *which*
+memories to keep, not a way to keep more of them.
+
+Capacity, forgetting rate and consolidation are all genetic and all cost upkeep every tick, so memory
+has to earn its keep. Many lineages evolve *zero* slots, which is a legitimate answer to a world
+where remembering costs more than it returns.
+
+### The world model
+
+Each organism carries a small private predictive model:
+
+```text
+[ its own current internal state , the action it took ]  ->  [ its next internal state , reward ]
+```
+
+The "internal state" is not a description of the world written anywhere in the code. It is the
+organism's own hidden layer — whatever its evolved brain compresses its senses into. Nobody labels
+those units, nothing guarantees they mean anything, and what they encode differs between lineages.
+The model learns to predict the organism's *own representation*, so as the representation evolves, so
+does what there is to predict.
+
+It is a linear map fitted by normalised least mean squares: a few hundred multiply-adds, learning
+online from single samples, unable to diverge, and small enough that carrying one is a plausible
+metabolic cost. It is a weak model on purpose. An organism that predicts well here has done so
+because its *brain* found a representation that happens to be linearly predictable, which is a real
+thing for evolution to discover.
+
+The model runs at a quarter of the brain's rate, staggered by slot. One model step therefore spans
+several decisions — which is both what makes it affordable at population scale and what makes a
+consequence landing several ticks after its cause something a one-step predictor can get hold of.
+
+Four quantities come out of it, and they are deliberately not the same quantity:
+
+| | |
+| --- | --- |
+| **Surprise** | how wrong the last expectation was, split into latent error and reward error |
+| **Confidence** | `1 / (1 + long-run surprise)` |
+| **Novelty** | how little the model has been exposed to the features it is currently acting on |
+| **Learning progress** | long-run surprise minus recent surprise, *minus how much that difference bounces around on its own* |
+
+That last correction matters more than it looks and a failing test is what found it. Without it, a
+permanently unpredictable stream still produces positive progress regularly — the short average
+fluctuates around the long one and every downward fluctuation reads as improvement. An organism paid
+for that would be paid for sitting in front of noise, which is exactly what learning progress exists
+to rule out. So an improvement only counts once it exceeds the standard deviation the short average
+would have under pure chance: the same standard the experiment runner applies to a difference between
+arms, applied here to a difference across time.
+
+Intrinsic value is `curiosity × learning progress × novelty`. It requires *both* that the situation
+is unfamiliar and that the organism has been improving — novelty alone would pay an animal to stare
+at static. It enters the Hebbian learning signal as a separate term from reward, weighted by a gene
+that is usually near zero and by a global gain well under one, so nothing can live on curiosity.
+
+### Imagination and planning
+
+Before acting, an organism with a non-zero prediction horizon *and* a non-zero planning budget can
+take the action its network just proposed, invent a few variations on it, roll each forward through
+its own model, and keep whichever one the model expects to go best. With either gene at zero — which
+is what almost every founder has — none of it runs and the organism acts on its raw network output
+exactly as before.
+
+Three things are worth being explicit about.
+
+There is no planning *algorithm* in the sense of a rule that knows what to do about anything. Nothing
+in it can tell a predator from a plant. It compares numbers its owner's model produced and picks the
+larger, and if that model is wrong — which early in every life it is — the plan is worse than no plan
+at all. **Deliberating badly is a real way to die here.**
+
+The candidates are perturbations of the brain's own proposal, not samples from the whole action
+space: an organism considers doing roughly what it was already going to do, slightly differently. How
+slightly is set by the *same* gene that weights the unexplained, so an incurious animal considers
+small variations on its habit and a curious one entertains stranger ideas.
+
+A candidate is scored on predicted reward **plus** how little the model knows about it, weighted by
+curiosity. That single line is where exploration and exploitation come from. Nothing declares a mode.
+An organism with zero curiosity maximises expected reward and repeats what works; one with high
+curiosity will take an action it expects to go worse in order to find out what happens. Which of them
+survives is a question about the world.
+
+Deliberation is charged per imagined step, and the machinery costs upkeep whether used or not. The
+plan is stored as a departure from instinct rather than as an action, so it survives the ticks
+between deliberations while the senses keep changing underneath it.
+
+### Delayed consequences
+
+Some vegetation carries a slow poison. How much is a sharp function of `flora` — a visible, smoothly
+varying property of the growth that has no consequences of its own — times a component that
+appearance does *not* predict. Eating pays energy immediately and adds to a toxin load that damages
+health hundreds of ticks later, once it passes a harmless threshold.
+
+Nothing announces this. A reflex cannot connect the two events; a place-memory or a model might. A
+lineage can answer it by learning which growth carries it or by evolving to clear it faster — two
+entirely different solutions to one problem, and nothing prefers either. A lineage can also simply
+not answer it.
+
+A `toxicShift` world event moves which appearance is dangerous. It kills nobody directly. What it
+does is invalidate every model in the world at once, which is a different kind of pressure from a
+meteor: the organisms that come through it are the ones whose learning could keep up, not the ones
+that were furthest from the impact.
 
 ### Communication
 
@@ -374,9 +534,27 @@ Results are reported as mean ± spread across replicates, and any difference sma
 is reported as **inconclusive** rather than as a result. One run of an evolutionary simulation tells
 you almost nothing; the founder bottleneck alone can swing the outcome by an order of magnitude.
 
-Five preset hypotheses ship with it, each stating the claim and the reasoning behind it — predation
-vs grouping, food patchiness vs memory, signal cost vs signal meaning, imitation cost vs cultural
-transmission, transfer efficiency vs kin altruism.
+Twelve preset hypotheses ship with it, each stating the claim and the reasoning behind it —
+predation vs grouping, food patchiness vs memory, signal cost vs signal meaning, imitation cost vs
+cultural transmission, transfer efficiency vs kin altruism.
+
+Seven of them are the **ablation ladder**, and they are the only honest way to ask whether any of the
+cognitive machinery is doing anything: run the same world twice with one faculty switched off.
+
+| Hypothesis | Control arm vs |
+| --- | --- |
+| Does lifetime learning matter? | plasticity and auditory association off |
+| Does the world model pay for its upkeep? | no world model at all |
+| Does imagining before acting beat instinct? | no deliberation |
+| Does taking value from learning help? | extrinsic reward only |
+| Does volatility favour faster learning? | an almost unchanging world vs hard, fast seasons |
+| Do delayed consequences select for memory? | nothing is poisonous vs strongly poisonous |
+| Can hearing carry a belief? | sound informs nothing |
+
+Every one of them can come back **inconclusive**, and several probably will. That is not a failed
+experiment — it is the finding that the faculty did not pay for itself in that world, which is a
+perfectly ordinary thing for a faculty to fail to do. The switches behind them live in `SimConfig`,
+are never touched by the simulation itself, and exist purely so a control arm can be a real control.
 
 ### A worked result
 
@@ -451,15 +629,42 @@ Map overlays show the raw environment fields. Vegetation and Signal Field are th
 while it runs — they show what organisms are actually responding to.
 
 Click any organism to open the inspector: genome, expressed body, life history, ancestry, kin
-markers, its episodic memories with their valence and distance, its vocal and auditory bands in
-hertz, the sounds currently in its echoic buffer, what it has personally come to expect after each
-sound it keeps hearing, which behaviour lineage it is running, and its **live brain** with
-activations and weights — so "why did it do that" is answerable.
+markers, its episodic memories with their valence, importance and whether each was lived or merely
+heard, how well its model has been predicting and how surprised it currently is, whether it has been
+getting better lately, how far ahead it deliberates and how much that deliberation changed its last
+decision, what it is carrying that it cannot name, its vocal and auditory bands in hertz, the sounds
+currently in its echoic buffer, what it has personally come to expect after each sound it keeps
+hearing, which behaviour lineage it is running, and its **live brain** with activations and weights
+— so "why did it do that" is answerable.
 
 Panels, left to right: **World** (live stats), **Charts**, **Species** (with inferred niches),
 **Voice** (the acoustic observatory and First Contact), **Culture** (imitation and meme lineages),
-**History** (derived milestones and anomalies), **Lab** (forked experiments), **Museum**,
-**Inspect**, **Events**, **Setup**.
+**History** (derived milestones and anomalies), **Minds** (the cognitive observatory), **Lab**
+(forked experiments), **Museum**, **Inspect**, **Events**, **Setup**.
+
+### The Minds panel
+
+Three things, in descending order of how much they can be trusted.
+
+**Trajectories** — what each species measured at, against generation. Brain width, memory slots,
+prediction accuracy, learning rate, planning depth. These are measurements and they are presented as
+measurements: nowhere does the panel say a lineage became smarter, because "smarter" is not a
+quantity anything computed. `prediction accuracy 0.31 at generation 40, 0.62 at generation 900` is a
+fact about the telemetry; what it means is the reader's problem, and deliberately so. Two lineages
+with identical numbers can be doing completely different things — a deep planner running on a badly
+fitted model and an accurate predictor that never plans both show up as "cognitive", and they are not
+the same animal.
+
+**Associations** — which environmental series moved together with which cognitive ones, over the
+telemetry history. Food unpredictability against prediction accuracy, predation against planning
+depth, and so on. Each is reported with its correlation coefficient and its sample count on the same
+line, and nothing below `|r| = 0.35` or 24 samples is shown at all.
+
+**A reading of it**, explicitly marked as a reading, followed by the experiment that would have to be
+run to turn it into a result. Two quantities measured in the same world at the same time drift
+together for all sorts of reasons that have nothing to do with either causing the other, and this
+panel has no way to tell those cases apart. The Lab tab does. The panel says so rather than quietly
+implying the work has already been done.
 
 ### Listening to it
 
@@ -563,8 +768,19 @@ the mutation operators — never in an `if` statement that produces the behaviou
 Implemented: procedural world with climate and seasons, full genome/phenotype system, recurrent
 brains with lifetime plasticity, emergent diet and predation, carrion, pheromone fields, sexual and
 asexual reproduction, speciation with a phylogenetic tree, permanent extinction records, world
-events, eleven experiment presets, WebGPU rendering with a Canvas2D fallback, deterministic core,
+events, thirteen experiment presets, WebGPU rendering with a Canvas2D fallback, deterministic core,
 IndexedDB persistence with file export/import, live charts and a full organism inspector.
+
+Added in the world-model upgrade: a private linear predictive model per organism over its own hidden
+layer, running at a quarter of the brain rate; prediction error split into latent and reward
+components; learning progress with a noise-floor correction; intrinsic value from
+`curiosity x progress x novelty`; a diagonal epistemic-uncertainty estimate; internal simulation and
+shallow planning with evolvable depth and breadth and a per-step energy charge; a meta-rate that lets
+recent surprise change the learning rate itself; eight loci for how an organism learns, all costed;
+memory context fingerprints, importance and rest-time consolidation with offline replay; acuity-scaled
+sensory noise; toxic vegetation as a delayed consequence with a shiftable cue; place-memories formed
+from heard sounds; a cognitive observatory; and seven ablation hypotheses so every one of those
+claims can be tested against a real control.
 
 Added in the acoustic-communication upgrade: a genetically determined vocal tract and ear, sound
 that propagates with frequency-dependent absorption, terrain absorption and frequency-selective
@@ -590,6 +806,12 @@ Deliberately not built yet, in rough priority order:
   output, carryable objects with physical properties, and terrain an organism can actually change.
   The feedback loop it creates (organisms reshape the world, the world reshapes selection) is the
   single most interesting unbuilt mechanic here.
+- **Deeper representation learning.** The world model is linear over the brain's hidden layer, which
+  means an organism can only predict what its evolved representation happens to make linearly
+  predictable. That is a real constraint and arguably the right one at this population scale, but a
+  small non-linearity — or a learned encoder separate from the policy — would widen what is
+  discoverable. It should be driven by evidence that the linear model is the binding constraint, not
+  by the assumption that bigger is better.
 - **Pathogens.** Host-parasite coevolution needs a second evolving population with its own genome
   and transmission model. Straightforward in principle, but it changes the energy economy enough to
   need its own round of balancing.

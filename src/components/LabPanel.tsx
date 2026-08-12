@@ -12,6 +12,43 @@ import {
   type WorldSaveMeta,
 } from '../persistence/db';
 import { DEFAULT_CONFIG, type SimConfig } from '../sim/core/config';
+
+/**
+ * The faculties that can be switched off wholesale. Instruments, not features:
+ * each one exists so that "does this actually do anything" can be asked by
+ * running the same world without it.
+ */
+const ABLATIONS: {
+  key: 'learningEnabled' | 'worldModelEnabled' | 'intrinsicEnabled' | 'planningEnabled' | 'socialMemoryEnabled';
+  label: string;
+  blurb: string;
+}[] = [
+  {
+    key: 'learningEnabled',
+    label: 'Lifetime learning',
+    blurb: 'Hebbian plasticity and the auditory associative memory. Off, nothing an organism experiences changes what it does.',
+  },
+  {
+    key: 'worldModelEnabled',
+    label: 'World model',
+    blurb: 'The private predictive model, its upkeep, and everything downstream of it. Off, no organism forms an expectation about anything.',
+  },
+  {
+    key: 'intrinsicEnabled',
+    label: 'Intrinsic value',
+    blurb: 'Value taken from learning itself, and the uncertainty term in deliberation. Off, only energy counts.',
+  },
+  {
+    key: 'planningEnabled',
+    label: 'Deliberation',
+    blurb: 'Imagining alternatives before acting. Off, every organism does exactly what its network proposed.',
+  },
+  {
+    key: 'socialMemoryEnabled',
+    label: 'Belief from sound',
+    blurb: 'A listener writing a place-memory from what it heard. Off, knowledge can only be acquired by living it.',
+  },
+];
 import { Button, Section, fmt } from './ui';
 
 /**
@@ -256,10 +293,63 @@ export function LabPanel() {
             onChange={(v) => applyLive({ signalDecay: v })}
             format={(v) => v.toFixed(3)}
           />
+          <Slider
+            label="poison strength"
+            min={0}
+            max={1.5}
+            step={0.05}
+            value={live.toxinPotency ?? DEFAULT_CONFIG.toxinPotency}
+            onChange={(v) => applyLive({ toxinPotency: v })}
+            format={(v) => v.toFixed(2)}
+          />
+          <Slider
+            label="sensory noise"
+            min={0}
+            max={0.3}
+            step={0.01}
+            value={live.perceptualNoise ?? DEFAULT_CONFIG.perceptualNoise}
+            onChange={(v) => applyLive({ perceptualNoise: v })}
+            format={(v) => v.toFixed(2)}
+          />
         </div>
         <p className="mt-2 text-[9px] leading-snug text-ink-dim">
           Live edits apply immediately but break exact reproducibility of the current run — the
           seed alone no longer determines the outcome. Restart to get a clean, replayable run.
+        </p>
+      </Section>
+
+      <Section title="Ablation switches">
+        <div className="space-y-1">
+          {ABLATIONS.map((a) => {
+            const on = live[a.key] ?? DEFAULT_CONFIG[a.key];
+            return (
+              <button
+                key={a.key}
+                onClick={() => applyLive({ [a.key]: !on } as Partial<SimConfig>)}
+                className={`flex w-full items-start gap-2 border px-2 py-1.5 text-left transition-colors ${
+                  on ? 'border-edge/60 bg-panel-2' : 'border-danger/50 bg-danger/5'
+                }`}
+              >
+                <span
+                  className={`mt-[3px] inline-block h-2 w-2 shrink-0 rounded-full ${
+                    on ? 'bg-life' : 'bg-danger'
+                  }`}
+                />
+                <span className="min-w-0">
+                  <span className="block text-[11px] text-ink">
+                    {a.label} — {on ? 'on' : 'off'}
+                  </span>
+                  <span className="block text-[9px] leading-snug text-ink-dim">{a.blurb}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[9px] leading-relaxed text-ink-dim">
+          These exist so a control arm can be a real control. Nothing in the simulation ever touches
+          them, none of them unlocks anything, and switching one off here changes the running world
+          rather than setting up an experiment — for a controlled comparison, use the ablation
+          hypotheses in the Lab panel, which fork the world and run replicates.
         </p>
       </Section>
 

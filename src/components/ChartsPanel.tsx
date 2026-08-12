@@ -50,10 +50,47 @@ export function ChartsPanel() {
         zeroBased: false,
       },
       {
-        title: 'Cognition',
+        title: 'Brain hardware',
         series: [
           { label: 'brain units', data: s.avgBrainSize, color: '#4ee0c8' },
           { label: 'plasticity', data: s.avgPlasticity, color: '#6aa8ff', secondary: true },
+        ],
+        zeroBased: false,
+      },
+      {
+        // Accuracy is measured against each organism's own next internal state,
+        // so it says the models fit — not that anything is using them well.
+        title: 'Prediction',
+        series: [
+          { label: 'accuracy', data: s.predictionAccuracy, color: '#4ee0c8' },
+          { label: 'learning rate', data: s.predictionRate, color: '#ffb454', secondary: true },
+        ],
+        zeroBased: false,
+      },
+      {
+        // Progress and novelty are deliberately charted together: novelty alone
+        // rising is an organism meeting things it cannot predict, which is not
+        // the same as learning and should not be read as it.
+        title: 'Learning progress & novelty',
+        series: [
+          { label: 'learning progress', data: s.learningProgress, color: '#7ddc7d' },
+          { label: 'novelty met', data: s.novelty, color: '#c98aff', secondary: true },
+        ],
+        zeroBased: false,
+      },
+      {
+        title: 'Curiosity & deliberation',
+        series: [
+          { label: 'mean curiosity', data: s.curiosity, color: '#ff8ac8' },
+          { label: 'plan horizon', data: s.planning, color: '#5ed3ff', secondary: true },
+        ],
+        zeroBased: false,
+      },
+      {
+        title: 'Delayed consequences & second-hand belief',
+        series: [
+          { label: 'toxin burden', data: s.toxinLoad, color: '#ff8a5e' },
+          { label: 'heard-not-lived memories/tick', data: s.vicarious, color: '#5ed3ff', secondary: true },
         ],
         zeroBased: false,
       },

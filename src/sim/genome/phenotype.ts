@@ -65,6 +65,24 @@ export interface Phenotype {
   echoicDepth: number;
   soundPrototypes: number;
 
+  // ---- the learning apparatus ----
+  // Not what the organism knows. How it comes to know anything: the rate its
+  // internal model is fitted at, how quickly an unrefreshed expectation is
+  // abandoned, how much recent surprise is allowed to change that rate, how
+  // much weight the unexplained carries, and how far and how widely it can
+  // imagine before acting. Every one of these can express to zero, and a
+  // lineage that takes zero pays nothing for any of it.
+  predictionRate: number;
+  modelDecay: number;
+  metaGain: number;
+  curiosity: number;
+  planHorizon: number;
+  planBudget: number;
+  consolidation: number;
+
+  /** How fast an accumulated toxin load is cleared, per tick. */
+  toxinClearance: number;
+
   /** Total per-tick upkeep implied by the body plan. */
   upkeep: number;
 }
@@ -73,6 +91,14 @@ export const MAX_HIDDEN = 14;
 export const MAX_CONTEXT = 6;
 /** Episodic place-memories an organism can hold at maximum. */
 export const MAX_MEMORY = 8;
+/**
+ * Ceilings on imagination. Both are small on purpose: this is an animal
+ * briefly considering a couple of alternatives a few moments ahead, not a tree
+ * search. Raising them costs the population its frame budget long before it
+ * buys any organism a better decision.
+ */
+export const MAX_PLAN_HORIZON = 4;
+export const MAX_PLAN_BUDGET = 5;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -180,6 +206,28 @@ export function expressInto(out: Phenotype, g: Float32Array, off: number): Pheno
   out.echoicDepth = Math.round(MAX_ECHOIC * sm);
   out.soundPrototypes = Math.round(MAX_PROTOTYPES * sm);
 
+  // ---- the learning apparatus ----
+  // Squared throughout, for the same reason memory capacity is: the default
+  // draw should be an organism that barely models anything. A lineage that
+  // predicts well has to have been pushed there.
+  out.predictionRate = g[off + Locus.PredictionRate] ** 2 * 0.45;
+  // Forgetting is a rate at which unrefreshed weights slide back toward
+  // nothing. High values make an organism live in the present tense: it
+  // tracks a changing world well and remembers a stable one badly.
+  out.modelDecay = lerp(0, 0.02, g[off + Locus.ModelDecay] ** 1.5);
+  out.metaGain = g[off + Locus.MetaRate] ** 2 * 2.2;
+  out.curiosity = g[off + Locus.Curiosity] ** 2;
+  // Depth and breadth are separate genes because they are separate costs. An
+  // organism can evolve to look one step ahead down five branches, or four
+  // steps ahead down one, and those are different animals.
+  out.planHorizon = Math.round(MAX_PLAN_HORIZON * g[off + Locus.PredictionHorizon] ** 2);
+  out.planBudget = Math.round(MAX_PLAN_BUDGET * g[off + Locus.PlanningBudget] ** 2);
+  out.consolidation = g[off + Locus.Consolidation] ** 2;
+
+  // A detoxifying organ. Cheap to lack, and lacking it only matters if the
+  // lineage eats things that need clearing.
+  out.toxinClearance = lerp(0.004, 0.06, g[off + Locus.ToxinTolerance] ** 1.6);
+
   // Everything the body costs to simply exist, per tick.
   //
   // The constant term is the important one. Without a floor, every cost scales
@@ -216,7 +264,26 @@ export function expressInto(out: Phenotype, g: Float32Array, off: number): Pheno
     (out.auditoryHigh - out.auditoryLow) * 0.01 +
     out.auditoryResolution * 0.02 +
     out.echoicDepth * 0.004 +
-    out.soundPrototypes * 0.005;
+    out.soundPrototypes * 0.005 +
+    // Cognition is charged for the same way a body is. Fitting a model fast is
+    // metabolically expensive and, at the top of the range, roughly doubles a
+    // small organism's standing cost; so does carrying the machinery to imagine
+    // several futures at once. This is the whole reason intelligence is not
+    // simply free and therefore universal here: a lineage that predicts better
+    // but reproduces later loses, and which of the two wins is a fact about the
+    // environment rather than about this file.
+    out.predictionRate * 0.22 +
+    out.curiosity * 0.035 +
+    // Depth times breadth, because that product is what actually gets rolled
+    // out. Horizon 4 across 5 branches costs about what a mid-sized body does.
+    out.planHorizon * out.planBudget * 0.0022 +
+    out.consolidation * 0.012 +
+    out.metaGain * 0.006 +
+    // Only the *excess* over the cheapest possible liver is charged. Some
+    // baseline clearance is part of having a metabolism at all and is already
+    // paid for in the constant term; what costs extra is being unusually good
+    // at it, which is the thing a lineage would have to evolve.
+    Math.max(0, out.toxinClearance - 0.004) * 0.6;
 
   return out;
 }

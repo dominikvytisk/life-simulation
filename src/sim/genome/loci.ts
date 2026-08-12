@@ -58,10 +58,28 @@ export const Locus = {
   AuditoryHighEdge: 38,
   AuditoryResolution: 39, // frequency discrimination; blurs everything below it
   SoundMemory: 40, // echoic depth and how many sound patterns can be held
+
+  // --- how this organism learns, rather than what it does ---
+  // None of these is a behaviour. They set the terms on which experience is
+  // turned into expectation: how fast a model of the world is fitted, how long
+  // it is trusted, how far ahead it is run, and how much an unexplained
+  // observation is worth pursuing. Two organisms with identical bodies and
+  // identical brains but different values here will, in the same world, end up
+  // behaving differently — because they will have learned different things.
+  PredictionRate: 41, // how fast the internal model is fitted to experience
+  ModelDecay: 42, // how fast an unrefreshed expectation is given up
+  MetaRate: 43, // how much recent surprise is allowed to change the rate itself
+  Curiosity: 44, // weight on the unexplained: drives both learning and choice
+  PredictionHorizon: 45, // how many model steps ahead can be imagined
+  PlanningBudget: 46, // how many alternative actions can be imagined at once
+  Consolidation: 47, // how much is replayed while resting
+
+  // --- physiology of a delayed cost ---
+  ToxinTolerance: 48, // how fast an accumulated toxin load is cleared
 } as const;
 
 export type LocusName = keyof typeof Locus;
-export const GENOME_LENGTH = 41;
+export const GENOME_LENGTH = 49;
 
 export const LOCUS_NAMES: string[] = (() => {
   const arr = new Array<string>(GENOME_LENGTH);
@@ -112,6 +130,14 @@ export const LOCUS_LABELS: Record<string, string> = {
   AuditoryHighEdge: 'Hearing band edge B',
   AuditoryResolution: 'Frequency resolution',
   SoundMemory: 'Sound memory',
+  PredictionRate: 'Prediction rate',
+  ModelDecay: 'Model forgetting',
+  MetaRate: 'Rate adaptation',
+  Curiosity: 'Curiosity',
+  PredictionHorizon: 'Prediction horizon',
+  PlanningBudget: 'Planning budget',
+  Consolidation: 'Consolidation',
+  ToxinTolerance: 'Toxin tolerance',
 };
 
 /**
@@ -144,6 +170,18 @@ export const DISTANCE_WEIGHTS = (() => {
   w[Locus.AuditoryHighEdge] = 0.7;
   w[Locus.AuditoryResolution] = 0.4;
   w[Locus.SoundMemory] = 0.5;
+  // How a lineage learns weighs about as much as how it hears. Two populations
+  // that fit their models at very different rates are diverging in something
+  // ecologically real, but a learning rate is not a body plan and should not be
+  // able to split a species on its own.
+  w[Locus.PredictionRate] = 0.6;
+  w[Locus.ModelDecay] = 0.3;
+  w[Locus.MetaRate] = 0.3;
+  w[Locus.Curiosity] = 0.6;
+  w[Locus.PredictionHorizon] = 0.6;
+  w[Locus.PlanningBudget] = 0.6;
+  w[Locus.Consolidation] = 0.35;
+  w[Locus.ToxinTolerance] = 0.8;
   return w;
 })();
 
@@ -217,9 +255,17 @@ export const LOCUS_CATEGORY: Uint8Array = (() => {
     Locus.MemoryPersistence,
     Locus.SocialLearning,
     Locus.SoundMemory,
+    Locus.PredictionRate,
+    Locus.ModelDecay,
+    Locus.MetaRate,
+    Locus.Curiosity,
+    Locus.PredictionHorizon,
+    Locus.PlanningBudget,
+    Locus.Consolidation,
   ]) {
     c[l] = MutationCategory.Neural;
   }
+  c[Locus.ToxinTolerance] = MutationCategory.Parameter;
   return c;
 })();
 

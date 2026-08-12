@@ -47,6 +47,21 @@ export class World {
   readonly baseTemperature: Float32Array;
   readonly fertility: Float32Array; // vegetation carrying capacity, 0..1
   readonly biome: Uint8Array;
+  /**
+   * What the vegetation here looks like. A visible, smoothly varying property
+   * with no consequences of its own — an organism can perceive it directly and
+   * it does nothing. Its only significance is that it happens to be correlated
+   * with `toxinBase` through `toxicityAt`, and that correlation is a fact about
+   * this world that has to be learned rather than sensed.
+   */
+  readonly flora: Float32Array;
+  /**
+   * The part of toxicity that flora does *not* predict. Without it the
+   * relationship would be exact, and an organism that noticed it once would
+   * never need its model again. With it, prediction is worth something and
+   * remains imperfect no matter how good the learner is.
+   */
+  readonly toxinBase: Float32Array;
 
   // Dynamic layers
   readonly vegetation: Float32Array; // biomass, 0..capacity
@@ -73,6 +88,8 @@ export class World {
     this.baseTemperature = new Float32Array(n);
     this.fertility = new Float32Array(n);
     this.biome = new Uint8Array(n);
+    this.flora = new Float32Array(n);
+    this.toxinBase = new Float32Array(n);
     this.vegetation = new Float32Array(n);
     this.carrion = new Float32Array(n);
     this.signal0 = new Float32Array(n);
@@ -87,6 +104,8 @@ export class World {
     const elevNoise = new SimplexNoise(rng);
     const moistNoise = new SimplexNoise(rng);
     const detailNoise = new SimplexNoise(rng);
+    const floraNoise = new SimplexNoise(rng);
+    const toxinNoise = new SimplexNoise(rng);
     const g = this.grid;
     const inv = 1 / g;
 
@@ -130,6 +149,16 @@ export class World {
         const flat = 1 - smoothstep(0.62, 0.9, e);
         this.fertility[i] = land * clamp01(warmth) * wet * flat;
 
+        // Flora varies on a coarser scale than terrain detail, so a patch of
+        // one kind of growth is big enough to be worth learning about and small
+        // enough that an organism meets several kinds in a lifetime. It leans
+        // on moisture, which means it is partly predictable from things an
+        // organism can already sense — and only partly.
+        this.flora[i] = clamp01(
+          floraNoise.fbm(fx * 6.3 + 19.1, fy * 6.3 - 8.4, 4) * 0.5 + 0.5 + (m - 0.5) * 0.25,
+        );
+        this.toxinBase[i] = clamp01(toxinNoise.fbm(fx * 9.1 - 3.7, fy * 9.1 + 24.5, 3) * 0.5 + 0.5);
+
         this.biome[i] = classifyBiome(e, m, this.baseTemperature[i], cfg.waterLevel);
         // Seed vegetation at capacity so the first generation has something to eat.
         this.vegetation[i] = this.fertility[i] * (0.35 + rng.next() * 0.5);
@@ -150,6 +179,27 @@ export class World {
     // Vegetation dies off outside a viable thermal band.
     const thermal = clamp01(1 - Math.abs(heat - 0.6) * 2.1);
     return this.fertility[i] * thermal * seasonal * Math.max(0, 1 - this.scorch[i]);
+  }
+
+  /**
+   * How much of a slow poison the vegetation at a cell carries, 0..1.
+   *
+   * The dangerous band sits at a particular appearance, and where that band
+   * sits can move (a `toxicShift` event does exactly that). Nothing about the
+   * cell announces this: an organism that has learned to avoid one look has
+   * learned a fact that was true when it learned it, and a lineage carrying
+   * that lesson through a shift is carrying a false belief.
+   */
+  toxicityAt(i: number, cfg: SimConfig): number {
+    if (cfg.toxinPotency <= 0) return 0;
+    const center = cfg.floraToxicCenter + cfg.toxicCenterOffset;
+    let d = this.flora[i] - center;
+    if (d < 0) d = -d;
+    // Sharp in flora, so most of the map carries none of it at all and the
+    // patches that do are worth having an opinion about. The second factor is
+    // the part appearance does not predict: within the dangerous band, how bad
+    // it actually is still varies, and no amount of learning removes that.
+    return clamp01((1 - d * 6) * (0.5 + this.toxinBase[i] * 0.7));
   }
 
   /** Temperature actually experienced at a cell right now. */

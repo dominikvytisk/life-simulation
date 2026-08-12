@@ -228,6 +228,8 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
         milestones: sim.chronicle.getMilestones(),
         anomalies: sim.chronicle.getAnomalies(30),
         mutationTally: Array.from(sim.mutationTally),
+        cognition: sim.cognitionReport(),
+        trajectories: sim.cognitionLedger.trajectories(10),
       });
       break;
     }

@@ -19,6 +19,7 @@ import type {
 } from '../sim/core/types';
 import type { SimConfig } from '../sim/core/config';
 import type { ExperimentReport } from '../experiments/runner';
+import type { CognitionReport, SpeciesCognition } from '../sim/analysis/cognition';
 
 export type PanelTab =
   | 'overview'
@@ -30,6 +31,7 @@ export type PanelTab =
   | 'voice'
   | 'chronicle'
   | 'experiments'
+  | 'cognition'
   | 'world'
   | 'lab';
 
@@ -61,6 +63,8 @@ interface UIState {
   milestones: Milestone[];
   anomalies: AnomalyReport[];
   mutationTally: number[];
+  cognition: CognitionReport | null;
+  trajectories: SpeciesCognition[];
   experiment: ExperimentReport | null;
   experimentRunning: boolean;
   experimentProgress: Record<string, number>;
@@ -103,6 +107,8 @@ export const useStore = create<UIState>((set) => ({
   milestones: [],
   anomalies: [],
   mutationTally: [],
+  cognition: null,
+  trajectories: [],
   experiment: null,
   experimentRunning: false,
   experimentProgress: {},
