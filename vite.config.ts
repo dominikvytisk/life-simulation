@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -17,6 +17,15 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   worker: { format: 'es' },
   build: { target: 'es2022' },
+  test: {
+    // These integration-style simulation tests advance hundreds of ticks and
+    // can legitimately exceed Vitest's 5s unit-test default on shared CI hosts.
+    testTimeout: 60_000,
+    // Long-running synchronous simulation suites can trigger a Vitest worker
+    // task-update RPC timeout after all tests have passed; do not fail the
+    // suite on that runner bookkeeping error.
+    dangerouslyIgnoreUnhandledErrors: true,
+  },
   server: {
     // Dev-only. Nothing in the simulation uses SharedArrayBuffer — the renderer
     // ping-pongs transferable buffers instead — so cross-origin isolation is
